@@ -9,6 +9,7 @@ import { GalleryCard } from "@/components/gallery-card"
 import { PreviewCard } from "@/components/preview-card"
 import { CheckCircle, Lock } from "lucide-react"
 import Link from "next/link"
+import { useSharedData } from "@/components/shared-data-provider"
 
 interface Submission {
   id: number
@@ -25,7 +26,7 @@ export default function GalleryPage() {
   const searchParams = useSearchParams()
   const showPreview = searchParams.get("preview") === "true"
   const [submitted, setSubmitted] = useState(false)
-  const [submissions, setSubmissions] = useState<Submission[]>([])
+  const { submissions } = useSharedData()
   const [selectedDate, setSelectedDate] = useState("")
   const [availableDates, setAvailableDates] = useState<string[]>([])
   const [hasAccess, setHasAccess] = useState(false)
@@ -45,18 +46,16 @@ export default function GalleryPage() {
 
       setHasAccess(hasSubmittedToday)
 
-      // Load all submissions from localStorage
+      // Load all submissions - COMBINE local submissions with demo submissions
       const storedSubmissions = JSON.parse(localStorage.getItem("submissions") || "[]")
-      setSubmissions(storedSubmissions)
 
-      // Get available dates (only show dates where user has submitted)
-      const userSubmittedDates = Object.keys(userSubmissions).filter((date) => userSubmissions[date])
-      const availableDatesFromSubmissions = [...new Set(storedSubmissions.map((s: Submission) => s.problemId))]
+      // Get available dates from all submissions
+      const availableDatesFromSubmissions = [...new Set(submissions.map((s: Submission) => s.problemId))]
 
       // Show dates where user has submitted OR if user has submitted today (can see all)
       const accessibleDates = hasSubmittedToday
         ? availableDatesFromSubmissions
-        : availableDatesFromSubmissions.filter((date) => userSubmittedDates.includes(date))
+        : availableDatesFromSubmissions.filter((date) => userSubmissions[date])
 
       const sortedDates = accessibleDates.sort().reverse()
       setAvailableDates(sortedDates)
@@ -75,7 +74,7 @@ export default function GalleryPage() {
     }
 
     checkAccessAndLoadData()
-  }, [showPreview, selectedDate])
+  }, [showPreview, selectedDate, submissions])
 
   const handleSubmitFinal = () => {
     setSubmitted(true)

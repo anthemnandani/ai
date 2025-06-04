@@ -13,6 +13,7 @@ import { TipCard } from "@/components/tip-card"
 import { ProblemStatement } from "@/components/problem-statement"
 import { CheckCircle } from "lucide-react"
 import Link from "next/link"
+import { useSharedData } from "@/components/shared-data-provider"
 
 // Extended daily problem statements with more variety
 const DAILY_PROBLEMS = [
@@ -121,6 +122,8 @@ export default function SubmitPage() {
   const [todaysProblem, setTodaysProblem] = useState(DAILY_PROBLEMS[0])
   const [hasSubmittedToday, setHasSubmittedToday] = useState(false)
 
+  const { addSubmission } = useSharedData()
+
   useEffect(() => {
     const today = new Date().toISOString().split("T")[0]
     const problem = getProblemForDate(today)
@@ -146,9 +149,12 @@ export default function SubmitPage() {
 
     const today = new Date().toISOString().split("T")[0]
 
-    // Save submission to localStorage
+    // Generate a more unique ID that includes timestamp and random component
+    const uniqueId = Date.now() + Math.floor(Math.random() * 1000)
+
+    // Create submission object
     const submission = {
-      id: Date.now(),
+      id: uniqueId,
       ...formData,
       problemId: todaysProblem.date,
       problemTitle: todaysProblem.title,
@@ -156,10 +162,8 @@ export default function SubmitPage() {
       filePreview: formData.filePreview,
     }
 
-    // Get existing submissions
-    const existingSubmissions = JSON.parse(localStorage.getItem("submissions") || "[]")
-    existingSubmissions.push(submission)
-    localStorage.setItem("submissions", JSON.stringify(existingSubmissions))
+    // Add submission to shared data (which will also update localStorage)
+    addSubmission(submission)
 
     // Update user's submission history
     const userSubmissions = JSON.parse(localStorage.getItem("userSubmissionHistory") || "{}")

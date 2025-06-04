@@ -68,6 +68,12 @@ const GalleryPage = () => {
     }
   }
 
+  const handleViewChallenge = (problemId) => {
+    setSelectedDate(problemId)
+    // Scroll to top to show the selected challenge
+    window.scrollTo({ top: 0, behavior: "smooth" })
+  }
+
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString("en-US", {
       weekday: "long",
@@ -167,6 +173,35 @@ const GalleryPage = () => {
               </div>
             </div>
 
+            {/* Current Challenge Info */}
+            {selectedDate && (
+              <div
+                className="card"
+                style={{
+                  padding: "1.5rem",
+                  marginBottom: "1.5rem",
+                  background: "linear-gradient(to right, #f8fafc, #f1f5f9)",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  <div>
+                    <h3 style={{ fontSize: "1.125rem", fontWeight: "600", marginBottom: "0.5rem" }}>
+                      Challenge: {formatDate(selectedDate)}
+                    </h3>
+                    <p style={{ color: "#6b7280" }}>
+                      {submissions.length > 0
+                        ? `Viewing ${submissions.length} solution${submissions.length !== 1 ? "s" : ""} for this challenge`
+                        : "No solutions submitted for this challenge yet"}
+                    </p>
+                  </div>
+                  <div style={{ textAlign: "right" }}>
+                    <p style={{ fontSize: "0.875rem", color: "#6b7280" }}>Problem ID</p>
+                    <p style={{ fontFamily: "monospace", fontSize: "0.875rem", color: "#374151" }}>{selectedDate}</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {submissions.length > 0 ? (
               <div className="grid md:grid-cols-2" style={{ gap: "1.5rem" }}>
                 {submissions.map((submission) => (
@@ -176,6 +211,11 @@ const GalleryPage = () => {
             ) : (
               <div className="card empty-state">
                 <p>No submissions found for the selected date.</p>
+                {availableDates.length > 0 && (
+                  <p style={{ fontSize: "0.875rem", color: "#6b7280", marginTop: "0.5rem" }}>
+                    Try selecting a different date from the dropdown above.
+                  </p>
+                )}
               </div>
             )}
           </div>
@@ -197,7 +237,8 @@ const GalleryPage = () => {
                     <div
                       key={submission._id}
                       className="sidebar-item"
-                      onClick={() => setSelectedDate(submission.problemId)}
+                      style={{ cursor: "pointer" }}
+                      onClick={() => handleViewChallenge(submission.problemId)}
                     >
                       <img
                         src={submission.imageUrl || "/placeholder.svg"}
@@ -216,6 +257,10 @@ const GalleryPage = () => {
                             padding: "0 0.5rem",
                             fontSize: "0.75rem",
                             color: "#9333ea",
+                          }}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleViewChallenge(submission.problemId)
                           }}
                         >
                           View Challenge

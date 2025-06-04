@@ -62,6 +62,12 @@ export default function GalleryPage() {
     setSubmitted(true)
   }
 
+  const handleViewChallenge = (problemId: string) => {
+    setSelectedDate(problemId)
+    // Scroll to top to show the selected challenge
+    window.scrollTo({ top: 0, behavior: "smooth" })
+  }
+
   const filteredSubmissions = submissions.filter((s) => s.problemId === selectedDate)
 
   const formatDate = (dateString: string) => {
@@ -168,6 +174,28 @@ export default function GalleryPage() {
                     </div>
                   </Card>
 
+                  {/* Current Challenge Info */}
+                  {selectedDate && (
+                    <Card className="p-6 rounded-xl shadow-md border-0 bg-gradient-to-r from-[#f8fafc] to-[#f1f5f9]">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h3 className="text-lg font-semibold text-gray-800 mb-2">
+                            Challenge: {formatDate(selectedDate)}
+                          </h3>
+                          <p className="text-gray-600">
+                            {filteredSubmissions.length > 0
+                              ? `Viewing ${filteredSubmissions.length} solution${filteredSubmissions.length !== 1 ? "s" : ""} for this challenge`
+                              : "No solutions submitted for this challenge yet"}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-sm text-gray-500">Problem ID</p>
+                          <p className="font-mono text-sm text-gray-700">{selectedDate}</p>
+                        </div>
+                      </div>
+                    </Card>
+                  )}
+
                   {/* Solutions Grid */}
                   {filteredSubmissions.length > 0 ? (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -178,6 +206,11 @@ export default function GalleryPage() {
                   ) : (
                     <Card className="p-8 rounded-xl shadow-md border-0 text-center">
                       <p className="text-gray-600">No submissions found for the selected date.</p>
+                      {availableDates.length > 0 && (
+                        <p className="text-sm text-gray-500 mt-2">
+                          Try selecting a different date from the dropdown above.
+                        </p>
+                      )}
                     </Card>
                   )}
                 </div>
@@ -196,7 +229,8 @@ export default function GalleryPage() {
                       .map((submission) => (
                         <div
                           key={submission.id}
-                          className="flex items-start space-x-3 p-3 rounded-lg hover:bg-gray-50 transition-colors"
+                          className="flex items-start space-x-3 p-3 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer"
+                          onClick={() => handleViewChallenge(submission.problemId)}
                         >
                           <div className="h-16 w-16 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0">
                             <img
@@ -213,7 +247,10 @@ export default function GalleryPage() {
                               variant="ghost"
                               size="sm"
                               className="mt-1 h-7 px-2 text-xs text-[#9333ea] hover:bg-[#f5f0ff] hover:text-[#7e22ce]"
-                              onClick={() => setSelectedDate(submission.problemId)}
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleViewChallenge(submission.problemId)
+                              }}
                             >
                               View Challenge
                             </Button>

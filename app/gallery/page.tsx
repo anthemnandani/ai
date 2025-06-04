@@ -56,13 +56,14 @@ export default function GalleryPage() {
       const latest = storedSubmissions[storedSubmissions.length - 1]
       setUserSubmission(latest)
     }
-  }, [selectedDate, showPreview])
+  }, [showPreview])
 
   const handleSubmitFinal = () => {
     setSubmitted(true)
   }
 
   const handleViewChallenge = (problemId: string) => {
+    console.log("Switching to challenge:", problemId) // Debug log
     setSelectedDate(problemId)
     // Scroll to top to show the selected challenge
     window.scrollTo({ top: 0, behavior: "smooth" })
@@ -229,8 +230,7 @@ export default function GalleryPage() {
                       .map((submission) => (
                         <div
                           key={submission.id}
-                          className="flex items-start space-x-3 p-3 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer"
-                          onClick={() => handleViewChallenge(submission.problemId)}
+                          className="flex items-start space-x-3 p-3 rounded-lg hover:bg-gray-50 transition-colors"
                         >
                           <div className="h-16 w-16 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0">
                             <img
@@ -247,8 +247,8 @@ export default function GalleryPage() {
                               variant="ghost"
                               size="sm"
                               className="mt-1 h-7 px-2 text-xs text-[#9333ea] hover:bg-[#f5f0ff] hover:text-[#7e22ce]"
-                              onClick={(e) => {
-                                e.stopPropagation()
+                              onClick={() => {
+                                console.log("Button clicked for problem:", submission.problemId) // Debug log
                                 handleViewChallenge(submission.problemId)
                               }}
                             >

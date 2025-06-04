@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react"
 import { useSearchParams, Link } from "react-router-dom"
-import axios from "axios"
 import { Lock, CheckCircle } from "lucide-react"
 import GalleryCard from "../components/GalleryCard"
 
@@ -38,10 +37,12 @@ const GalleryPage = () => {
 
   const fetchAvailableDates = async () => {
     try {
-      const response = await axios.get("/api/submissions/dates/available")
-      setAvailableDates(response.data)
-      if (response.data.length > 0 && !selectedDate) {
-        setSelectedDate(response.data[0])
+      // For demo purposes, using localStorage data
+      const storedSubmissions = JSON.parse(localStorage.getItem("submissions") || "[]")
+      const dates = [...new Set(storedSubmissions.map((s) => s.problemId))].sort().reverse()
+      setAvailableDates(dates)
+      if (dates.length > 0 && !selectedDate) {
+        setSelectedDate(dates[0])
       }
     } catch (error) {
       console.error("Error fetching available dates:", error)
@@ -50,26 +51,32 @@ const GalleryPage = () => {
     }
   }
 
-  const fetchSubmissions = async (problemId) => {
+  const fetchSubmissions = (problemId) => {
     try {
-      const response = await axios.get(`/api/submissions/${problemId}`)
-      setSubmissions(response.data)
+      // For demo purposes, using localStorage data
+      const storedSubmissions = JSON.parse(localStorage.getItem("submissions") || "[]")
+      const filtered = storedSubmissions.filter((s) => s.problemId === problemId)
+      setSubmissions(filtered)
+      console.log("Fetched submissions for", problemId, ":", filtered) // Debug log
     } catch (error) {
       console.error("Error fetching submissions:", error)
     }
   }
 
-  const fetchRecentSubmissions = async () => {
+  const fetchRecentSubmissions = () => {
     try {
-      const response = await axios.get("/api/submissions")
-      setRecentSubmissions(response.data.slice(0, 10))
+      // For demo purposes, using localStorage data
+      const storedSubmissions = JSON.parse(localStorage.getItem("submissions") || "[]")
+      setRecentSubmissions(storedSubmissions.slice(-10).reverse())
     } catch (error) {
       console.error("Error fetching recent submissions:", error)
     }
   }
 
   const handleViewChallenge = (problemId) => {
+    console.log("Switching to challenge:", problemId) // Debug log
     setSelectedDate(problemId)
+    fetchSubmissions(problemId)
     // Scroll to top to show the selected challenge
     window.scrollTo({ top: 0, behavior: "smooth" })
   }
@@ -162,7 +169,14 @@ const GalleryPage = () => {
               <div className="card" style={{ padding: "1rem" }}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                   <h2 style={{ fontSize: "1.125rem", fontWeight: "600" }}>Browse Solutions</h2>
-                  <select value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} className="select">
+                  <select
+                    value={selectedDate}
+                    onChange={(e) => {
+                      console.log("Dropdown changed to:", e.target.value) // Debug log
+                      handleViewChallenge(e.target.value)
+                    }}
+                    className="select"
+                  >
                     {availableDates.map((date) => (
                       <option key={date} value={date}>
                         {formatDate(date)}
@@ -205,7 +219,7 @@ const GalleryPage = () => {
             {submissions.length > 0 ? (
               <div className="grid md:grid-cols-2" style={{ gap: "1.5rem" }}>
                 {submissions.map((submission) => (
-                  <GalleryCard key={submission._id} item={submission} />
+                  <GalleryCard key={submission.id || submission._id} item={submission} />
                 ))}
               </div>
             ) : (
@@ -234,14 +248,9 @@ const GalleryPage = () => {
                   }}
                 >
                   {recentSubmissions.map((submission) => (
-                    <div
-                      key={submission._id}
-                      className="sidebar-item"
-                      style={{ cursor: "pointer" }}
-                      onClick={() => handleViewChallenge(submission.problemId)}
-                    >
+                    <div key={submission.id || submission._id} className="sidebar-item" style={{ cursor: "pointer" }}>
                       <img
-                        src={submission.imageUrl || "/placeholder.svg"}
+                        src={submission.filePreview || submission.imageUrl || "/placeholder.svg"}
                         alt={submission.description}
                         className="sidebar-image"
                       />
@@ -260,6 +269,7 @@ const GalleryPage = () => {
                           }}
                           onClick={(e) => {
                             e.stopPropagation()
+                            console.log("Sidebar button clicked for:", submission.problemId) // Debug log
                             handleViewChallenge(submission.problemId)
                           }}
                         >

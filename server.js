@@ -277,79 +277,28 @@ app.get("/api/submissions/single/:id", async (req, res) => {
   }
 })
 
-// Delete submission (for admin purposes)
-app.delete("/api/submissions/:id", async (req, res) => {
-  try {
-    const { id } = req.params
-
-    if (!ObjectId.isValid(id)) {
-      return res.status(400).json({ error: "Invalid submission ID" })
-    }
-
-    const submissionsCollection = getSubmissionsCollection()
-    const result = await submissionsCollection.deleteOne({ _id: new ObjectId(id) })
-
-    if (result.deletedCount === 0) {
-      return res.status(404).json({ error: "Submission not found" })
-    }
-
-    res.json({ message: "Submission deleted successfully" })
-  } catch (error) {
-    console.error("Error deleting submission:", error)
-    res.status(500).json({ error: error.message })
-  }
-})
-
-// Get statistics
-app.get("/api/stats", async (req, res) => {
+// Admin route to view all data
+app.get("/api/admin/data", async (req, res) => {
   try {
     const submissionsCollection = getSubmissionsCollection()
     const problemsCollection = getProblemsCollection()
 
-    const [totalSubmissions, totalProblems, recentSubmissions] = await Promise.all([
-      submissionsCollection.countDocuments(),
-      problemsCollection.countDocuments(),
-      submissionsCollection.countDocuments({
-        submittedAt: { $gte: new Date(Date.now() - 24 * 60 * 60 * 1000) },
-      }),
+    const [submissions, problems] = await Promise.all([
+      submissionsCollection.find({}).sort({ submittedAt: -1 }).toArray(),
+      problemsCollection.find({}).sort({ date: -1 }).toArray(),
     ])
 
     res.json({
-      totalSubmissions,
-      totalProblems,
-      recentSubmissions,
+      submissions,
+      problems,
+      databaseInfo: {
+        name: db.databaseName,
+        collections: await db.listCollections().toArray(),
+        connectionString: mongoUri.replace(/\/\/([^:]+):([^@]+)@/, "//***:***@"), // Hide credentials
+      },
     })
   } catch (error) {
-    console.error("Error fetching stats:", error)
-    res.status(500).json({ error: error.message })
-  }
-})
-
-// Search submissions
-app.get("/api/search", async (req, res) => {
-  try {
-    const { q, problemId } = req.query
-    const submissionsCollection = getSubmissionsCollection()
-
-    const query = {}
-
-    if (problemId) {
-      query.problemId = problemId
-    }
-
-    if (q) {
-      query.$or = [
-        { name: { $regex: q, $options: "i" } },
-        { description: { $regex: q, $options: "i" } },
-        { problemTitle: { $regex: q, $options: "i" } },
-      ]
-    }
-
-    const submissions = await submissionsCollection.find(query).sort({ submittedAt: -1 }).limit(50).toArray()
-
-    res.json(submissions)
-  } catch (error) {
-    console.error("Error searching submissions:", error)
+    console.error("Error fetching admin data:", error)
     res.status(500).json({ error: error.message })
   }
 })
@@ -383,6 +332,7 @@ const PORT = process.env.PORT || 5000
 
 app.listen(PORT, async () => {
   console.log(`Server running on port ${PORT}`)
+  console.log(`Admin dashboard available at: http://localhost:${PORT}/api/admin/data`)
 
   // Wait a bit for MongoDB connection to be established
   setTimeout(async () => {

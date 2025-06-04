@@ -195,18 +195,6 @@ export default function SubmitPage() {
                   "Show your creative process and thinking",
                 ]}
               />
-
-              <div className="hidden lg:block">
-                <div className="relative h-80 w-full rounded-xl overflow-hidden bg-[#f5f0ff]">
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <img
-                      src="/placeholder.svg?height=320&width=320&text=TuteDude Mascot"
-                      alt="TuteDude mascot illustration"
-                      className="w-full h-full object-contain"
-                    />
-                  </div>
-                </div>
-              </div>
             </div>
           </div>
         </div>

@@ -20,10 +20,7 @@ export function Navbar() {
             Gallery
           </Link>
         </nav>
-        <div className="flex items-center space-x-4">
-          <Button variant="ghost" className="hidden md:flex text-gray-600 hover:text-gray-900 hover:bg-gray-100">
-            Sign In
-          </Button>
+        <div className="flex items-center">
           <Button className="bg-gradient-to-r from-[#d8b4fe] to-[#f9a8d4] hover:opacity-90 rounded-full">Join</Button>
         </div>
       </div>

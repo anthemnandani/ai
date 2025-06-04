@@ -52,11 +52,11 @@ export default function GalleryPage() {
     }
 
     // Find user's latest submission for preview
-    if (storedSubmissions.length > 0) {
+    if (storedSubmissions.length > 0 && showPreview) {
       const latest = storedSubmissions[storedSubmissions.length - 1]
       setUserSubmission(latest)
     }
-  }, [selectedDate])
+  }, [selectedDate, showPreview])
 
   const handleSubmitFinal = () => {
     setSubmitted(true)
@@ -73,6 +73,7 @@ export default function GalleryPage() {
     })
   }
 
+  // Show lock screen if user hasn't submitted today and not in preview mode
   if (!hasAccess && !showPreview) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-[#f8f9fa] to-[#f0f4f8] py-12">

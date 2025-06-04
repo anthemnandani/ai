@@ -2,27 +2,23 @@
 
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Heart, Calendar } from "lucide-react"
+import { Eye, Calendar, User } from "lucide-react"
 import { useState } from "react"
 
-interface Submission {
-  id: number
-  name: string
-  email: string
-  description: string
-  filePreview: string
-  problemId: string
-  problemTitle: string
-  submittedAt: string
-}
-
 interface GalleryCardProps {
-  item: Submission
+  item: {
+    id: number
+    name: string
+    email: string
+    description: string
+    filePreview: string
+    problemTitle: string
+    submittedAt: string
+  }
 }
 
 export function GalleryCard({ item }: GalleryCardProps) {
-  const [isHovered, setIsHovered] = useState(false)
-  const [isLiked, setIsLiked] = useState(false)
+  const [showFullImage, setShowFullImage] = useState(false)
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString("en-US", {
@@ -34,41 +30,82 @@ export function GalleryCard({ item }: GalleryCardProps) {
   }
 
   return (
-    <Card
-      className="overflow-hidden rounded-xl shadow-md border-0 transition-all hover:shadow-lg"
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
-    >
-      <div className="relative aspect-video">
-        <img
-          src={item.filePreview || "/placeholder.svg"}
-          alt={item.description}
-          className="w-full h-full object-cover"
-        />
-        {isHovered && (
-          <div className="absolute inset-0 bg-black/40 flex items-center justify-center transition-opacity">
-            <Button variant="secondary" className="bg-white/90 hover:bg-white text-gray-800">
-              View Details
+    <>
+      <Card className="overflow-hidden rounded-xl shadow-md border-0 hover:shadow-lg transition-shadow">
+        <div className="relative aspect-video bg-gray-100">
+          <img
+            src={item.filePreview || "/placeholder.svg"}
+            alt={item.description}
+            className="w-full h-full object-cover cursor-pointer"
+            onClick={() => setShowFullImage(true)}
+          />
+          <div className="absolute top-2 right-2">
+            <Button
+              size="sm"
+              variant="secondary"
+              className="h-8 w-8 p-0 bg-white/80 hover:bg-white"
+              onClick={() => setShowFullImage(true)}
+            >
+              <Eye className="h-4 w-4" />
             </Button>
           </div>
-        )}
-      </div>
-      <div className="p-4">
-        <div className="flex items-start justify-between mb-2">
-          <div className="flex-1">
-            <h3 className="font-medium text-gray-800">{item.name}</h3>
-            <p className="text-xs text-[#9333ea] font-medium">{item.problemTitle}</p>
+        </div>
+
+        <div className="p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <User className="h-4 w-4 text-gray-500" />
+              <span className="font-medium text-sm text-gray-800">{item.name}</span>
+            </div>
+            <div className="flex items-center space-x-1 text-xs text-gray-500">
+              <Calendar className="h-3 w-3" />
+              <span>{formatDate(item.submittedAt)}</span>
+            </div>
           </div>
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setIsLiked(!isLiked)}>
-            <Heart className={`h-5 w-5 ${isLiked ? "fill-[#f9a8d4] text-[#f9a8d4]" : "text-gray-400"}`} />
+
+          <h3 className="font-semibold text-gray-800 text-sm">{item.problemTitle}</h3>
+
+          <p className="text-sm text-gray-600 line-clamp-3">{item.description}</p>
+
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-full mt-3 border-[#d8b4fe] text-[#9333ea] hover:bg-[#f5f0ff]"
+            onClick={() => setShowFullImage(true)}
+          >
+            View Full Solution
           </Button>
         </div>
-        <p className="text-sm text-gray-500 line-clamp-2 mb-2">{item.description}</p>
-        <div className="flex items-center text-xs text-gray-400">
-          <Calendar className="h-3 w-3 mr-1" />
-          <span>{formatDate(item.submittedAt)}</span>
+      </Card>
+
+      {/* Full Image Modal */}
+      {showFullImage && (
+        <div
+          className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4"
+          onClick={() => setShowFullImage(false)}
+        >
+          <div className="relative max-w-4xl max-h-full">
+            <img
+              src={item.filePreview || "/placeholder.svg"}
+              alt={item.description}
+              className="max-w-full max-h-full object-contain rounded-lg"
+            />
+            <Button
+              variant="secondary"
+              size="sm"
+              className="absolute top-2 right-2"
+              onClick={() => setShowFullImage(false)}
+            >
+              ✕
+            </Button>
+            <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white p-4 rounded-b-lg">
+              <h3 className="font-semibold">{item.problemTitle}</h3>
+              <p className="text-sm opacity-90">by {item.name}</p>
+              <p className="text-sm mt-2">{item.description}</p>
+            </div>
+          </div>
         </div>
-      </div>
-    </Card>
+      )}
+    </>
   )
 }

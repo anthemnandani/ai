@@ -30,42 +30,66 @@ export default function GalleryPage() {
   const [availableDates, setAvailableDates] = useState<string[]>([])
   const [hasAccess, setHasAccess] = useState(false)
   const [userSubmission, setUserSubmission] = useState<Submission | null>(null)
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    // Check if user has submitted today
-    const hasSubmittedToday = localStorage.getItem("hasSubmittedToday") === "true"
-    const lastSubmissionDate = localStorage.getItem("lastSubmissionDate")
-    const today = new Date().toISOString().split("T")[0]
+    const checkAccessAndLoadData = () => {
+      setLoading(true)
 
-    setHasAccess(hasSubmittedToday && lastSubmissionDate === today)
+      // Get today's date
+      const today = new Date().toISOString().split("T")[0]
 
-    // Load submissions from localStorage
-    const storedSubmissions = JSON.parse(localStorage.getItem("submissions") || "[]")
-    setSubmissions(storedSubmissions)
+      // Check user's submission history
+      const userSubmissions = JSON.parse(localStorage.getItem("userSubmissionHistory") || "{}")
+      const hasSubmittedToday = userSubmissions[today] === true
 
-    // Get available dates
-    const dates = [...new Set(storedSubmissions.map((s: Submission) => s.problemId))].sort().reverse()
-    setAvailableDates(dates)
+      setHasAccess(hasSubmittedToday)
 
-    if (dates.length > 0 && !selectedDate) {
-      setSelectedDate(dates[0]) // Default to most recent
+      // Load all submissions from localStorage
+      const storedSubmissions = JSON.parse(localStorage.getItem("submissions") || "[]")
+      setSubmissions(storedSubmissions)
+
+      // Get available dates (only show dates where user has submitted)
+      const userSubmittedDates = Object.keys(userSubmissions).filter((date) => userSubmissions[date])
+      const availableDatesFromSubmissions = [...new Set(storedSubmissions.map((s: Submission) => s.problemId))]
+
+      // Show dates where user has submitted OR if user has submitted today (can see all)
+      const accessibleDates = hasSubmittedToday
+        ? availableDatesFromSubmissions
+        : availableDatesFromSubmissions.filter((date) => userSubmittedDates.includes(date))
+
+      const sortedDates = accessibleDates.sort().reverse()
+      setAvailableDates(sortedDates)
+
+      if (sortedDates.length > 0 && !selectedDate) {
+        setSelectedDate(sortedDates[0]) // Default to most recent accessible date
+      }
+
+      // Find user's latest submission for preview
+      if (storedSubmissions.length > 0 && showPreview) {
+        const latest = storedSubmissions[storedSubmissions.length - 1]
+        setUserSubmission(latest)
+      }
+
+      setLoading(false)
     }
 
-    // Find user's latest submission for preview
-    if (storedSubmissions.length > 0 && showPreview) {
-      const latest = storedSubmissions[storedSubmissions.length - 1]
-      setUserSubmission(latest)
-    }
-  }, [showPreview])
+    checkAccessAndLoadData()
+  }, [showPreview, selectedDate])
 
   const handleSubmitFinal = () => {
     setSubmitted(true)
+    // Update user's submission history
+    const today = new Date().toISOString().split("T")[0]
+    const userSubmissions = JSON.parse(localStorage.getItem("userSubmissionHistory") || "{}")
+    userSubmissions[today] = true
+    localStorage.setItem("userSubmissionHistory", JSON.stringify(userSubmissions))
+    setHasAccess(true)
   }
 
   const handleViewChallenge = (problemId: string) => {
-    console.log("Switching to challenge:", problemId) // Debug log
+    console.log("Switching to challenge:", problemId)
     setSelectedDate(problemId)
-    // Scroll to top to show the selected challenge
     window.scrollTo({ top: 0, behavior: "smooth" })
   }
 
@@ -102,6 +126,23 @@ export default function GalleryPage() {
                     Submit Today's Solution
                   </Button>
                 </Link>
+              </div>
+            </Card>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-[#f8f9fa] to-[#f0f4f8] py-12">
+        <div className="container mx-auto px-4">
+          <div className="max-w-2xl mx-auto text-center">
+            <Card className="p-8 rounded-xl shadow-md border-0">
+              <div className="flex flex-col items-center space-y-6">
+                <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-[#9333ea]"></div>
+                <h1 className="text-2xl font-bold text-gray-800">Loading Gallery...</h1>
               </div>
             </Card>
           </div>
@@ -160,18 +201,22 @@ export default function GalleryPage() {
                   <Card className="p-4 rounded-xl shadow-md border-0">
                     <div className="flex items-center justify-between">
                       <h2 className="text-lg font-semibold text-gray-800">Browse Solutions</h2>
-                      <Select value={selectedDate} onValueChange={setSelectedDate}>
-                        <SelectTrigger className="w-64">
-                          <SelectValue placeholder="Select a date" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {availableDates.map((date) => (
-                            <SelectItem key={date} value={date}>
-                              {formatDate(date)}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      {availableDates.length > 0 ? (
+                        <Select value={selectedDate} onValueChange={setSelectedDate}>
+                          <SelectTrigger className="w-64">
+                            <SelectValue placeholder="Select a date" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {availableDates.map((date) => (
+                              <SelectItem key={date} value={date}>
+                                {formatDate(date)}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <p className="text-gray-500">No challenges available</p>
+                      )}
                     </div>
                   </Card>
 
@@ -247,10 +292,7 @@ export default function GalleryPage() {
                               variant="ghost"
                               size="sm"
                               className="mt-1 h-7 px-2 text-xs text-[#9333ea] hover:bg-[#f5f0ff] hover:text-[#7e22ce]"
-                              onClick={() => {
-                                console.log("Button clicked for problem:", submission.problemId) // Debug log
-                                handleViewChallenge(submission.problemId)
-                              }}
+                              onClick={() => handleViewChallenge(submission.problemId)}
                             >
                               View Challenge
                             </Button>

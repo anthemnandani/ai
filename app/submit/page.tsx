@@ -11,8 +11,10 @@ import { Card } from "@/components/ui/card"
 import { FileUploader } from "@/components/file-uploader"
 import { TipCard } from "@/components/tip-card"
 import { ProblemStatement } from "@/components/problem-statement"
+import { CheckCircle } from "lucide-react"
+import Link from "next/link"
 
-// Daily problem statements
+// Extended daily problem statements with more variety
 const DAILY_PROBLEMS = [
   {
     date: "2024-12-06",
@@ -24,6 +26,54 @@ const DAILY_PROBLEMS = [
       "Use a grid-based layout",
       "Implement dark/light mode considerations",
       "Show real-time data visualization",
+    ],
+  },
+  {
+    date: "2024-12-07",
+    title: "Food Delivery Mobile App",
+    description:
+      "Create a mobile app interface for a food delivery service. Design the main browsing experience, restaurant details, and checkout flow. Focus on making food look appetizing and the ordering process seamless.",
+    requirements: [
+      "Restaurant listing with filters",
+      "Food item cards with images and ratings",
+      "Shopping cart and checkout flow",
+      "Order tracking interface",
+    ],
+  },
+  {
+    date: "2024-12-08",
+    title: "Online Learning Platform",
+    description:
+      "Design a modern e-learning platform interface. Include course discovery, video player, progress tracking, and student dashboard. Make it engaging for learners of all ages.",
+    requirements: [
+      "Course catalog with search and filters",
+      "Video player with notes and bookmarks",
+      "Progress tracking dashboard",
+      "Interactive quiz interface",
+    ],
+  },
+  {
+    date: "2024-12-09",
+    title: "Fitness Tracking App",
+    description:
+      "Create a comprehensive fitness app that tracks workouts, nutrition, and health metrics. Design should motivate users and make complex data easy to understand.",
+    requirements: [
+      "Workout logging interface",
+      "Nutrition tracking with food database",
+      "Progress charts and analytics",
+      "Social features for motivation",
+    ],
+  },
+  {
+    date: "2024-12-10",
+    title: "Banking Mobile App",
+    description:
+      "Design a secure and user-friendly mobile banking app. Include account overview, transaction history, money transfers, and bill payments. Security and trust should be paramount.",
+    requirements: [
+      "Account dashboard with balance overview",
+      "Transaction history with search",
+      "Money transfer interface",
+      "Bill payment and scheduling",
     ],
   },
   {
@@ -40,6 +90,25 @@ const DAILY_PROBLEMS = [
   },
 ]
 
+// Function to get problem for any date
+const getProblemForDate = (date: string) => {
+  // First check if we have a specific problem for this date
+  const specificProblem = DAILY_PROBLEMS.find((p) => p.date === date)
+  if (specificProblem) return specificProblem
+
+  // If not, generate a problem based on date
+  const dateObj = new Date(date)
+  const dayOfYear = Math.floor(
+    (dateObj.getTime() - new Date(dateObj.getFullYear(), 0, 0).getTime()) / (1000 * 60 * 60 * 24),
+  )
+  const problemIndex = dayOfYear % DAILY_PROBLEMS.length
+
+  return {
+    ...DAILY_PROBLEMS[problemIndex],
+    date: date, // Override the date to match the requested date
+  }
+}
+
 export default function SubmitPage() {
   const router = useRouter()
   const [formData, setFormData] = useState({
@@ -50,11 +119,16 @@ export default function SubmitPage() {
     filePreview: "",
   })
   const [todaysProblem, setTodaysProblem] = useState(DAILY_PROBLEMS[0])
+  const [hasSubmittedToday, setHasSubmittedToday] = useState(false)
 
   useEffect(() => {
     const today = new Date().toISOString().split("T")[0]
-    const problem = DAILY_PROBLEMS.find((p) => p.date === today) || DAILY_PROBLEMS[0]
+    const problem = getProblemForDate(today)
     setTodaysProblem(problem)
+
+    // Check if user has already submitted today
+    const userSubmissions = JSON.parse(localStorage.getItem("userSubmissionHistory") || "{}")
+    setHasSubmittedToday(userSubmissions[today] === true)
   }, [])
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -70,7 +144,9 @@ export default function SubmitPage() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
 
-    // Save submission to localStorage (in real app, this would be a database)
+    const today = new Date().toISOString().split("T")[0]
+
+    // Save submission to localStorage
     const submission = {
       id: Date.now(),
       ...formData,
@@ -85,12 +161,50 @@ export default function SubmitPage() {
     existingSubmissions.push(submission)
     localStorage.setItem("submissions", JSON.stringify(existingSubmissions))
 
-    // Mark user as having submitted today
-    localStorage.setItem("hasSubmittedToday", "true")
-    localStorage.setItem("lastSubmissionDate", todaysProblem.date)
+    // Update user's submission history
+    const userSubmissions = JSON.parse(localStorage.getItem("userSubmissionHistory") || "{}")
+    userSubmissions[today] = true
+    localStorage.setItem("userSubmissionHistory", JSON.stringify(userSubmissions))
 
     // Navigate to gallery with preview
     router.push("/gallery?preview=true")
+  }
+
+  if (hasSubmittedToday) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-[#f8f9fa] to-[#f0f4f8] py-12">
+        <div className="container mx-auto px-4">
+          <div className="max-w-2xl mx-auto text-center">
+            <Card className="p-8 rounded-xl shadow-md border-0">
+              <div className="flex flex-col items-center space-y-6">
+                <div className="h-16 w-16 rounded-full bg-[#ecfdf5] flex items-center justify-center">
+                  <CheckCircle className="h-10 w-10 text-[#10b981]" />
+                </div>
+                <h1 className="text-2xl font-bold text-gray-800">Already Submitted Today!</h1>
+                <p className="text-gray-600 leading-relaxed">
+                  You've already submitted your solution for today's challenge. Come back tomorrow for a new challenge!
+                </p>
+                <div className="flex gap-4">
+                  <Link href="/gallery">
+                    <Button className="h-12 px-8 bg-gradient-to-r from-[#d8b4fe] to-[#f9a8d4] hover:opacity-90 text-white rounded-full shadow-md">
+                      View Gallery
+                    </Button>
+                  </Link>
+                  <Link href="/">
+                    <Button
+                      variant="outline"
+                      className="h-12 px-8 border-[#d8b4fe] text-[#9333ea] hover:bg-[#f5f0ff] rounded-full"
+                    >
+                      Go Home
+                    </Button>
+                  </Link>
+                </div>
+              </div>
+            </Card>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (

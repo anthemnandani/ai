@@ -18,6 +18,8 @@ const SubmitPage = () => {
   const [todaysProblem, setTodaysProblem] = useState(null)
   const [loading, setLoading] = useState(false)
   const [previewUrl, setPreviewUrl] = useState("")
+  const [uploadProgress, setUploadProgress] = useState(0)
+  const [error, setError] = useState("")
 
   useEffect(() => {
     fetchTodaysProblem()
@@ -29,6 +31,7 @@ const SubmitPage = () => {
       setTodaysProblem(response.data)
     } catch (error) {
       console.error("Error fetching today's problem:", error)
+      setError("Failed to load today's challenge. Please refresh the page.")
     }
   }
 
@@ -45,11 +48,39 @@ const SubmitPage = () => {
     }
   }
 
+  const validateForm = () => {
+    if (!formData.name.trim()) {
+      setError("Name is required")
+      return false
+    }
+    if (!formData.email.trim()) {
+      setError("Email is required")
+      return false
+    }
+    if (!formData.description.trim()) {
+      setError("Description is required")
+      return false
+    }
+    if (!formData.file) {
+      setError("Please upload an image of your solution")
+      return false
+    }
+    return true
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault()
-    if (!todaysProblem) return
+    setError("")
+
+    if (!validateForm()) return
+    if (!todaysProblem) {
+      setError("Problem information is missing")
+      return
+    }
 
     setLoading(true)
+    setUploadProgress(0)
+
     try {
       const submitData = new FormData()
       submitData.append("name", formData.name)
@@ -61,6 +92,10 @@ const SubmitPage = () => {
 
       await axios.post("/api/submissions", submitData, {
         headers: { "Content-Type": "multipart/form-data" },
+        onUploadProgress: (progressEvent) => {
+          const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total)
+          setUploadProgress(percentCompleted)
+        },
       })
 
       // Mark as submitted in localStorage for access control
@@ -70,13 +105,13 @@ const SubmitPage = () => {
       navigate("/gallery?preview=true")
     } catch (error) {
       console.error("Error submitting solution:", error)
-      alert("Error submitting solution. Please try again.")
+      setError(error.response?.data?.error || "Error submitting solution. Please try again.")
     } finally {
       setLoading(false)
     }
   }
 
-  if (!todaysProblem) {
+  if (!todaysProblem && !error) {
     return (
       <div className="page">
         <div className="container">
@@ -96,11 +131,28 @@ const SubmitPage = () => {
           <h1 className="page-title gradient-text">Today's Design Challenge</h1>
         </div>
 
+        {error && (
+          <div
+            style={{
+              background: "#FEE2E2",
+              color: "#B91C1C",
+              padding: "0.75rem",
+              borderRadius: "0.5rem",
+              marginBottom: "1.5rem",
+              textAlign: "center",
+            }}
+          >
+            {error}
+          </div>
+        )}
+
         <div className="grid lg:grid-cols-8" style={{ gap: "2rem" }}>
           <div className="lg:col-span-8" style={{ gridColumn: "span 5" }}>
-            <div style={{ marginBottom: "1.5rem" }}>
-              <ProblemStatement problem={todaysProblem} />
-            </div>
+            {todaysProblem && (
+              <div style={{ marginBottom: "1.5rem" }}>
+                <ProblemStatement problem={todaysProblem} />
+              </div>
+            )}
 
             <div className="card" style={{ padding: "1.5rem" }}>
               <h2 style={{ fontSize: "1.25rem", fontWeight: "600", marginBottom: "1rem" }}>Submit Your Solution</h2>
@@ -161,6 +213,29 @@ const SubmitPage = () => {
                   </div>
                 )}
 
+                {loading && uploadProgress > 0 && (
+                  <div style={{ marginBottom: "1rem" }}>
+                    <p style={{ fontSize: "0.875rem", marginBottom: "0.5rem" }}>Uploading: {uploadProgress}%</p>
+                    <div
+                      style={{
+                        height: "0.5rem",
+                        background: "#E5E7EB",
+                        borderRadius: "9999px",
+                        overflow: "hidden",
+                      }}
+                    >
+                      <div
+                        style={{
+                          height: "100%",
+                          width: `${uploadProgress}%`,
+                          background: "linear-gradient(135deg, #d8b4fe 0%, #f9a8d4 100%)",
+                          transition: "width 0.3s ease",
+                        }}
+                      />
+                    </div>
+                  </div>
+                )}
+
                 <button
                   type="submit"
                   className="btn btn-primary"
@@ -186,20 +261,24 @@ const SubmitPage = () => {
                 ]}
               />
 
-              <div
-                className="card"
-                style={{
-                  padding: "2rem",
-                  background: "#f5f0ff",
-                  textAlign: "center",
-                  display: "none",
-                }}
-              >
-                <img
-                  src="/api/placeholder/320/320"
-                  alt="TuteDude mascot"
-                  style={{ width: "100%", height: "auto", borderRadius: "0.5rem" }}
-                />
+              <div className="card" style={{ padding: "1.5rem", background: "#f5f0ff" }}>
+                <h3 style={{ fontSize: "1.125rem", fontWeight: "600", marginBottom: "1rem" }}>About File Uploads</h3>
+                <ul style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+                  <li style={{ display: "flex", alignItems: "flex-start", gap: "0.5rem" }}>
+                    <span style={{ color: "#9333ea", fontWeight: "500" }}>•</span>
+                    <span style={{ fontSize: "0.875rem", color: "#6b7280" }}>Maximum file size: 10MB</span>
+                  </li>
+                  <li style={{ display: "flex", alignItems: "flex-start", gap: "0.5rem" }}>
+                    <span style={{ color: "#9333ea", fontWeight: "500" }}>•</span>
+                    <span style={{ fontSize: "0.875rem", color: "#6b7280" }}>Supported formats: JPG, PNG, GIF</span>
+                  </li>
+                  <li style={{ display: "flex", alignItems: "flex-start", gap: "0.5rem" }}>
+                    <span style={{ color: "#9333ea", fontWeight: "500" }}>•</span>
+                    <span style={{ fontSize: "0.875rem", color: "#6b7280" }}>
+                      For best results, use images with 16:9 aspect ratio
+                    </span>
+                  </li>
+                </ul>
               </div>
             </div>
           </div>

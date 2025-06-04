@@ -1,10 +1,11 @@
 const express = require("express")
-const mongoose = require("mongoose")
+const { MongoClient, ObjectId } = require("mongodb")
 const cors = require("cors")
 const dotenv = require("dotenv")
 const multer = require("multer")
 const cloudinary = require("cloudinary").v2
 const path = require("path")
+const fs = require("fs")
 
 dotenv.config()
 
@@ -23,52 +24,65 @@ cloudinary.config({
 })
 
 // MongoDB connection
-mongoose.connect(process.env.MONGODB_URI || "mongodb://localhost:27017/tutedude-challenges", {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-})
+let db
+const mongoUri = process.env.MONGODB_URI || "mongodb://localhost:27017/tutedude-challenges"
 
-// Problem Schema
-const problemSchema = new mongoose.Schema({
-  date: { type: String, required: true, unique: true },
-  title: { type: String, required: true },
-  description: { type: String, required: true },
-  requirements: [String],
-  createdAt: { type: Date, default: Date.now },
-})
+MongoClient.connect(mongoUri)
+  .then((client) => {
+    console.log("Connected to MongoDB")
+    db = client.db()
 
-// Submission Schema
-const submissionSchema = new mongoose.Schema({
-  name: { type: String, required: true },
-  email: { type: String, required: true },
-  description: { type: String, required: true },
-  imageUrl: { type: String, required: true },
-  problemId: { type: String, required: true },
-  problemTitle: { type: String, required: true },
-  submittedAt: { type: Date, default: Date.now },
-})
-
-const Problem = mongoose.model("Problem", problemSchema)
-const Submission = mongoose.model("Submission", submissionSchema)
+    // Create indexes for better performance
+    db.collection("problems").createIndex({ date: 1 }, { unique: true })
+    db.collection("submissions").createIndex({ problemId: 1 })
+    db.collection("submissions").createIndex({ submittedAt: -1 })
+  })
+  .catch((error) => {
+    console.error("MongoDB connection error:", error)
+    process.exit(1)
+  })
 
 // Multer configuration for file uploads
-const storage = multer.memoryStorage()
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    // Create uploads directory if it doesn't exist
+    const dir = "./uploads"
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true })
+    }
+    cb(null, dir)
+  },
+  filename: (req, file, cb) => {
+    // Create unique filename with original extension
+    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9)
+    const ext = path.extname(file.originalname)
+    cb(null, file.fieldname + "-" + uniqueSuffix + ext)
+  },
+})
+
+// File filter to only allow images
+const fileFilter = (req, file, cb) => {
+  if (file.mimetype.startsWith("image/")) {
+    cb(null, true)
+  } else {
+    cb(new Error("Only image files are allowed!"), false)
+  }
+}
+
 const upload = multer({
   storage: storage,
-  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
-  fileFilter: (req, file, cb) => {
-    if (file.mimetype.startsWith("image/")) {
-      cb(null, true)
-    } else {
-      cb(new Error("Only image files are allowed!"), false)
-    }
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB limit
   },
+  fileFilter: fileFilter,
 })
 
 // Seed initial problems
 const seedProblems = async () => {
   try {
-    const count = await Problem.countDocuments()
+    const problemsCollection = db.collection("problems")
+    const count = await problemsCollection.countDocuments()
+
     if (count === 0) {
       const problems = [
         {
@@ -82,6 +96,7 @@ const seedProblems = async () => {
             "Implement dark/light mode considerations",
             "Show real-time data visualization",
           ],
+          createdAt: new Date(),
         },
         {
           date: "2024-12-05",
@@ -94,9 +109,11 @@ const seedProblems = async () => {
             "Size guide integration",
             "Customer reviews section",
           ],
+          createdAt: new Date(),
         },
       ]
-      await Problem.insertMany(problems)
+
+      await problemsCollection.insertMany(problems)
       console.log("Initial problems seeded")
     }
   } catch (error) {
@@ -104,21 +121,28 @@ const seedProblems = async () => {
   }
 }
 
+// Database helper functions
+const getProblemsCollection = () => db.collection("problems")
+const getSubmissionsCollection = () => db.collection("submissions")
+
 // Routes
 
 // Get today's problem
 app.get("/api/problems/today", async (req, res) => {
   try {
     const today = new Date().toISOString().split("T")[0]
-    let problem = await Problem.findOne({ date: today })
+    const problemsCollection = getProblemsCollection()
+
+    let problem = await problemsCollection.findOne({ date: today })
 
     if (!problem) {
       // If no problem for today, get the latest one
-      problem = await Problem.findOne().sort({ date: -1 })
+      problem = await problemsCollection.findOne({}, { sort: { date: -1 } })
     }
 
     res.json(problem)
   } catch (error) {
+    console.error("Error fetching today's problem:", error)
     res.status(500).json({ error: error.message })
   }
 })
@@ -126,9 +150,11 @@ app.get("/api/problems/today", async (req, res) => {
 // Get all problems
 app.get("/api/problems", async (req, res) => {
   try {
-    const problems = await Problem.find().sort({ date: -1 })
+    const problemsCollection = getProblemsCollection()
+    const problems = await problemsCollection.find({}).sort({ date: -1 }).toArray()
     res.json(problems)
   } catch (error) {
+    console.error("Error fetching problems:", error)
     res.status(500).json({ error: error.message })
   }
 })
@@ -142,28 +168,45 @@ app.post("/api/submissions", upload.single("image"), async (req, res) => {
       return res.status(400).json({ error: "Image file is required" })
     }
 
+    // Validate required fields
+    if (!name || !email || !description || !problemId || !problemTitle) {
+      return res.status(400).json({ error: "All fields are required" })
+    }
+
     // Upload image to Cloudinary
-    const result = await new Promise((resolve, reject) => {
-      cloudinary.uploader
-        .upload_stream({ resource_type: "image", folder: "tutedude-submissions" }, (error, result) => {
-          if (error) reject(error)
-          else resolve(result)
-        })
-        .end(req.file.buffer)
+    const result = await cloudinary.uploader.upload(req.file.path, {
+      folder: "tutedude-submissions",
+      transformation: [{ width: 1200, height: 675, crop: "limit" }, { quality: "auto" }, { format: "auto" }],
     })
 
-    const submission = new Submission({
-      name,
-      email,
-      description,
+    // Remove the file from local storage after upload to Cloudinary
+    fs.unlinkSync(req.file.path)
+
+    const submission = {
+      name: name.trim(),
+      email: email.trim().toLowerCase(),
+      description: description.trim(),
       imageUrl: result.secure_url,
       problemId,
       problemTitle,
-    })
+      submittedAt: new Date(),
+    }
 
-    await submission.save()
-    res.status(201).json(submission)
+    const submissionsCollection = getSubmissionsCollection()
+    const insertResult = await submissionsCollection.insertOne(submission)
+
+    // Return the created submission with the generated _id
+    const createdSubmission = { ...submission, _id: insertResult.insertedId }
+
+    res.status(201).json(createdSubmission)
   } catch (error) {
+    console.error("Error submitting solution:", error)
+
+    // Clean up uploaded file if it exists
+    if (req.file && fs.existsSync(req.file.path)) {
+      fs.unlinkSync(req.file.path)
+    }
+
     res.status(500).json({ error: error.message })
   }
 })
@@ -172,9 +215,13 @@ app.post("/api/submissions", upload.single("image"), async (req, res) => {
 app.get("/api/submissions/:problemId", async (req, res) => {
   try {
     const { problemId } = req.params
-    const submissions = await Submission.find({ problemId }).sort({ submittedAt: -1 })
+    const submissionsCollection = getSubmissionsCollection()
+
+    const submissions = await submissionsCollection.find({ problemId }).sort({ submittedAt: -1 }).toArray()
+
     res.json(submissions)
   } catch (error) {
+    console.error("Error fetching submissions:", error)
     res.status(500).json({ error: error.message })
   }
 })
@@ -182,9 +229,12 @@ app.get("/api/submissions/:problemId", async (req, res) => {
 // Get all submissions (recent)
 app.get("/api/submissions", async (req, res) => {
   try {
-    const submissions = await Submission.find().sort({ submittedAt: -1 }).limit(20)
+    const submissionsCollection = getSubmissionsCollection()
+    const submissions = await submissionsCollection.find({}).sort({ submittedAt: -1 }).limit(20).toArray()
+
     res.json(submissions)
   } catch (error) {
+    console.error("Error fetching submissions:", error)
     res.status(500).json({ error: error.message })
   }
 })
@@ -192,11 +242,132 @@ app.get("/api/submissions", async (req, res) => {
 // Get available submission dates
 app.get("/api/submissions/dates/available", async (req, res) => {
   try {
-    const dates = await Submission.distinct("problemId")
-    res.json(dates.sort().reverse())
+    const submissionsCollection = getSubmissionsCollection()
+    const dates = await submissionsCollection.distinct("problemId")
+
+    // Sort dates in descending order
+    const sortedDates = dates.sort().reverse()
+    res.json(sortedDates)
   } catch (error) {
+    console.error("Error fetching available dates:", error)
     res.status(500).json({ error: error.message })
   }
+})
+
+// Get submission by ID
+app.get("/api/submissions/single/:id", async (req, res) => {
+  try {
+    const { id } = req.params
+
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).json({ error: "Invalid submission ID" })
+    }
+
+    const submissionsCollection = getSubmissionsCollection()
+    const submission = await submissionsCollection.findOne({ _id: new ObjectId(id) })
+
+    if (!submission) {
+      return res.status(404).json({ error: "Submission not found" })
+    }
+
+    res.json(submission)
+  } catch (error) {
+    console.error("Error fetching submission:", error)
+    res.status(500).json({ error: error.message })
+  }
+})
+
+// Delete submission (for admin purposes)
+app.delete("/api/submissions/:id", async (req, res) => {
+  try {
+    const { id } = req.params
+
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).json({ error: "Invalid submission ID" })
+    }
+
+    const submissionsCollection = getSubmissionsCollection()
+    const result = await submissionsCollection.deleteOne({ _id: new ObjectId(id) })
+
+    if (result.deletedCount === 0) {
+      return res.status(404).json({ error: "Submission not found" })
+    }
+
+    res.json({ message: "Submission deleted successfully" })
+  } catch (error) {
+    console.error("Error deleting submission:", error)
+    res.status(500).json({ error: error.message })
+  }
+})
+
+// Get statistics
+app.get("/api/stats", async (req, res) => {
+  try {
+    const submissionsCollection = getSubmissionsCollection()
+    const problemsCollection = getProblemsCollection()
+
+    const [totalSubmissions, totalProblems, recentSubmissions] = await Promise.all([
+      submissionsCollection.countDocuments(),
+      problemsCollection.countDocuments(),
+      submissionsCollection.countDocuments({
+        submittedAt: { $gte: new Date(Date.now() - 24 * 60 * 60 * 1000) },
+      }),
+    ])
+
+    res.json({
+      totalSubmissions,
+      totalProblems,
+      recentSubmissions,
+    })
+  } catch (error) {
+    console.error("Error fetching stats:", error)
+    res.status(500).json({ error: error.message })
+  }
+})
+
+// Search submissions
+app.get("/api/search", async (req, res) => {
+  try {
+    const { q, problemId } = req.query
+    const submissionsCollection = getSubmissionsCollection()
+
+    const query = {}
+
+    if (problemId) {
+      query.problemId = problemId
+    }
+
+    if (q) {
+      query.$or = [
+        { name: { $regex: q, $options: "i" } },
+        { description: { $regex: q, $options: "i" } },
+        { problemTitle: { $regex: q, $options: "i" } },
+      ]
+    }
+
+    const submissions = await submissionsCollection.find(query).sort({ submittedAt: -1 }).limit(50).toArray()
+
+    res.json(submissions)
+  } catch (error) {
+    console.error("Error searching submissions:", error)
+    res.status(500).json({ error: error.message })
+  }
+})
+
+// Error handling middleware
+app.use((error, req, res, next) => {
+  if (error instanceof multer.MulterError) {
+    if (error.code === "LIMIT_FILE_SIZE") {
+      return res.status(400).json({ error: "File too large. Maximum size is 10MB." })
+    }
+  }
+
+  if (error.message === "Only image files are allowed!") {
+    return res.status(400).json({ error: "Only image files are allowed!" })
+  }
+
+  console.error("Unhandled error:", error)
+  res.status(500).json({ error: "Internal server error" })
 })
 
 // Serve static files from React build
@@ -212,5 +383,17 @@ const PORT = process.env.PORT || 5000
 
 app.listen(PORT, async () => {
   console.log(`Server running on port ${PORT}`)
-  await seedProblems()
+
+  // Wait a bit for MongoDB connection to be established
+  setTimeout(async () => {
+    if (db) {
+      await seedProblems()
+    }
+  }, 1000)
+})
+
+// Graceful shutdown
+process.on("SIGINT", () => {
+  console.log("Shutting down gracefully...")
+  process.exit(0)
 })

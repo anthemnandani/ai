@@ -23,6 +23,7 @@ const HomePage = () => {
     activeDesigners: 0,
     challengesCompleted: 0,
   })
+  const [challenge, setChallenge] = useState(null)
 
   useEffect(() => {
     fetchTodaysChallenge()

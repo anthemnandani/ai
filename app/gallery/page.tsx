@@ -6,91 +6,44 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { GalleryCard } from "@/components/gallery-card"
-import { PreviewCard } from "@/components/preview-card"
-import { CheckCircle, Lock } from "lucide-react"
+import { RealtimeIndicator } from "@/components/realtime-indicator"
+import { CheckCircle, Lock, Loader2 } from "lucide-react"
 import Link from "next/link"
-import { useSharedData } from "@/components/shared-data-provider"
-
-interface Submission {
-  id: number
-  name: string
-  email: string
-  description: string
-  filePreview: string
-  problemId: string
-  problemTitle: string
-  submittedAt: string
-}
+import { storageUtils } from "@/lib/storage"
+import { useRealtimeSubmissions } from "@/hooks/use-realtime-submissions"
+import { toast } from "sonner"
 
 export default function GalleryPage() {
   const searchParams = useSearchParams()
   const showPreview = searchParams.get("preview") === "true"
-  const [submitted, setSubmitted] = useState(false)
-  const { submissions } = useSharedData()
+  const { submissions, loading } = useRealtimeSubmissions()
+
   const [selectedDate, setSelectedDate] = useState("")
   const [availableDates, setAvailableDates] = useState<string[]>([])
   const [hasAccess, setHasAccess] = useState(false)
-  const [userSubmission, setUserSubmission] = useState<Submission | null>(null)
-  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const checkAccessAndLoadData = () => {
-      setLoading(true)
+    const checkAccess = () => {
+      const userHasSubmitted = storageUtils.hasUserSubmittedToday()
+      setHasAccess(userHasSubmitted || showPreview)
 
-      // Get today's date
-      const today = new Date().toISOString().split("T")[0]
+      // Get available dates from submissions
+      const dates = [...new Set(submissions.map((s) => s.problemId))].sort().reverse()
+      setAvailableDates(dates)
 
-      // Check user's submission history
-      const userSubmissions = JSON.parse(localStorage.getItem("userSubmissionHistory") || "{}")
-      const hasSubmittedToday = userSubmissions[today] === true
-
-      setHasAccess(hasSubmittedToday)
-
-      // Load all submissions - COMBINE local submissions with demo submissions
-      const storedSubmissions = JSON.parse(localStorage.getItem("submissions") || "[]")
-
-      // Get available dates from all submissions
-      const availableDatesFromSubmissions = [...new Set(submissions.map((s: Submission) => s.problemId))]
-
-      // Show dates where user has submitted OR if user has submitted today (can see all)
-      const accessibleDates = hasSubmittedToday
-        ? availableDatesFromSubmissions
-        : availableDatesFromSubmissions.filter((date) => userSubmissions[date])
-
-      const sortedDates = accessibleDates.sort().reverse()
-      setAvailableDates(sortedDates)
-
-      if (sortedDates.length > 0 && !selectedDate) {
-        setSelectedDate(sortedDates[0]) // Default to most recent accessible date
+      if (dates.length > 0 && !selectedDate) {
+        setSelectedDate(dates[0])
       }
-
-      // Find user's latest submission for preview
-      if (storedSubmissions.length > 0 && showPreview) {
-        const latest = storedSubmissions[storedSubmissions.length - 1]
-        setUserSubmission(latest)
-      }
-
-      setLoading(false)
     }
 
-    checkAccessAndLoadData()
-  }, [showPreview, selectedDate, submissions])
+    checkAccess()
+  }, [submissions, showPreview, selectedDate])
 
-  const handleSubmitFinal = () => {
-    setSubmitted(true)
-    // Update user's submission history
-    const today = new Date().toISOString().split("T")[0]
-    const userSubmissions = JSON.parse(localStorage.getItem("userSubmissionHistory") || "{}")
-    userSubmissions[today] = true
-    localStorage.setItem("userSubmissionHistory", JSON.stringify(userSubmissions))
-    setHasAccess(true)
-  }
-
-  const handleViewChallenge = (problemId: string) => {
-    console.log("Switching to challenge:", problemId)
-    setSelectedDate(problemId)
-    window.scrollTo({ top: 0, behavior: "smooth" })
-  }
+  useEffect(() => {
+    if (showPreview) {
+      toast.success("Submission successful! Welcome to the gallery.")
+    }
+  }, [showPreview])
 
   const filteredSubmissions = submissions.filter((s) => s.problemId === selectedDate)
 
@@ -103,10 +56,11 @@ export default function GalleryPage() {
     })
   }
 
-  // Show lock screen if user hasn't submitted today and not in preview mode
+  // Show lock screen if user hasn't submitted and not in preview mode
   if (!hasAccess && !showPreview) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-[#f8f9fa] to-[#f0f4f8] py-12">
+        <RealtimeIndicator />
         <div className="container mx-auto px-4">
           <div className="max-w-2xl mx-auto text-center">
             <Card className="p-8 rounded-xl shadow-md border-0">
@@ -136,11 +90,12 @@ export default function GalleryPage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-[#f8f9fa] to-[#f0f4f8] py-12">
+        <RealtimeIndicator />
         <div className="container mx-auto px-4">
           <div className="max-w-2xl mx-auto text-center">
             <Card className="p-8 rounded-xl shadow-md border-0">
               <div className="flex flex-col items-center space-y-6">
-                <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-[#9333ea]"></div>
+                <Loader2 className="h-16 w-16 text-[#9333ea] animate-spin" />
                 <h1 className="text-2xl font-bold text-gray-800">Loading Gallery...</h1>
               </div>
             </Card>
@@ -152,113 +107,91 @@ export default function GalleryPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#f8f9fa] to-[#f0f4f8] py-12">
+      <RealtimeIndicator />
       <div className="container mx-auto px-4">
         <div className="max-w-6xl mx-auto">
           <h1 className="text-3xl md:text-4xl font-bold text-center mb-8 bg-gradient-to-r from-[#d8b4fe] to-[#f9a8d4] bg-clip-text text-transparent">
-            {showPreview ? "Preview Your Submission" : "Community Solutions Gallery"}
+            {showPreview ? "Welcome to the Gallery!" : "Community Design Gallery"}
           </h1>
 
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-            {/* Preview or Gallery Main Content */}
-            <div className="lg:col-span-8 space-y-6">
-              {showPreview && userSubmission ? (
-                <div className="space-y-6">
-                  <PreviewCard data={userSubmission} />
+          {showPreview && (
+            <Card className="p-6 rounded-xl shadow-md border-0 bg-white/80 backdrop-blur-sm mb-8">
+              <div className="flex items-center justify-center text-center space-x-4">
+                <CheckCircle className="h-8 w-8 text-[#10b981]" />
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-800">Submission Successful!</h3>
+                  <p className="text-gray-600">
+                    Your design has been added to the gallery. Explore other creative solutions below.
+                  </p>
+                </div>
+              </div>
+            </Card>
+          )}
 
-                  {submitted ? (
-                    <Card className="p-6 rounded-xl shadow-md border-0 bg-white/80 backdrop-blur-sm">
-                      <div className="flex flex-col items-center text-center space-y-4 py-6">
-                        <div className="h-16 w-16 rounded-full bg-[#ecfdf5] flex items-center justify-center">
-                          <CheckCircle className="h-10 w-10 text-[#10b981]" />
-                        </div>
-                        <h3 className="text-xl font-semibold text-gray-800">Submission Successful!</h3>
-                        <p className="text-gray-600 max-w-md">
-                          Your solution has been submitted successfully. You can now explore other community solutions
-                          and get inspired by different approaches to the same problem.
-                        </p>
-                        <Button
-                          variant="outline"
-                          className="mt-4 border-[#d8b4fe] text-[#9333ea] hover:bg-[#f5f0ff]"
-                          onClick={() => (window.location.href = "/gallery")}
-                        >
-                          Explore Community Solutions
-                        </Button>
-                      </div>
-                    </Card>
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            {/* Main Gallery Content */}
+            <div className="lg:col-span-8 space-y-6">
+              {/* Date Filter */}
+              <Card className="p-4 rounded-xl shadow-md border-0">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-lg font-semibold text-gray-800">Browse Solutions</h2>
+                  {availableDates.length > 0 ? (
+                    <Select value={selectedDate} onValueChange={setSelectedDate}>
+                      <SelectTrigger className="w-64">
+                        <SelectValue placeholder="Select a date" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {availableDates.map((date) => (
+                          <SelectItem key={date} value={date}>
+                            {formatDate(date)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   ) : (
-                    <Button
-                      onClick={handleSubmitFinal}
-                      className="w-full h-12 bg-gradient-to-r from-[#d8b4fe] to-[#f9a8d4] hover:opacity-90 text-white rounded-full shadow-md"
-                    >
-                      Confirm Submission
-                    </Button>
+                    <p className="text-gray-500">No submissions yet</p>
                   )}
+                </div>
+              </Card>
+
+              {/* Current Challenge Info */}
+              {selectedDate && (
+                <Card className="p-6 rounded-xl shadow-md border-0 bg-gradient-to-r from-[#f8fafc] to-[#f1f5f9]">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-800 mb-2">
+                        Challenge: {formatDate(selectedDate)}
+                      </h3>
+                      <p className="text-gray-600">
+                        {filteredSubmissions.length > 0
+                          ? `Viewing ${filteredSubmissions.length} solution${filteredSubmissions.length !== 1 ? "s" : ""} for this challenge`
+                          : "No solutions submitted for this challenge yet"}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm text-gray-500">Real-time Updates</p>
+                      <p className="font-mono text-sm text-green-600">🟢 Active</p>
+                    </div>
+                  </div>
+                </Card>
+              )}
+
+              {/* Solutions Grid */}
+              {filteredSubmissions.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {filteredSubmissions.map((submission) => (
+                    <GalleryCard key={submission.id} item={submission} />
+                  ))}
                 </div>
               ) : (
-                <div className="space-y-6">
-                  {/* Date Filter */}
-                  <Card className="p-4 rounded-xl shadow-md border-0">
-                    <div className="flex items-center justify-between">
-                      <h2 className="text-lg font-semibold text-gray-800">Browse Solutions</h2>
-                      {availableDates.length > 0 ? (
-                        <Select value={selectedDate} onValueChange={setSelectedDate}>
-                          <SelectTrigger className="w-64">
-                            <SelectValue placeholder="Select a date" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {availableDates.map((date) => (
-                              <SelectItem key={date} value={date}>
-                                {formatDate(date)}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      ) : (
-                        <p className="text-gray-500">No challenges available</p>
-                      )}
-                    </div>
-                  </Card>
-
-                  {/* Current Challenge Info */}
-                  {selectedDate && (
-                    <Card className="p-6 rounded-xl shadow-md border-0 bg-gradient-to-r from-[#f8fafc] to-[#f1f5f9]">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <h3 className="text-lg font-semibold text-gray-800 mb-2">
-                            Challenge: {formatDate(selectedDate)}
-                          </h3>
-                          <p className="text-gray-600">
-                            {filteredSubmissions.length > 0
-                              ? `Viewing ${filteredSubmissions.length} solution${filteredSubmissions.length !== 1 ? "s" : ""} for this challenge`
-                              : "No solutions submitted for this challenge yet"}
-                          </p>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-sm text-gray-500">Problem ID</p>
-                          <p className="font-mono text-sm text-gray-700">{selectedDate}</p>
-                        </div>
-                      </div>
-                    </Card>
+                <Card className="p-8 rounded-xl shadow-md border-0 text-center">
+                  <p className="text-gray-600">No submissions found for the selected date.</p>
+                  {availableDates.length > 0 && (
+                    <p className="text-sm text-gray-500 mt-2">
+                      Try selecting a different date from the dropdown above.
+                    </p>
                   )}
-
-                  {/* Solutions Grid */}
-                  {filteredSubmissions.length > 0 ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      {filteredSubmissions.map((submission) => (
-                        <GalleryCard key={submission.id} item={submission} />
-                      ))}
-                    </div>
-                  ) : (
-                    <Card className="p-8 rounded-xl shadow-md border-0 text-center">
-                      <p className="text-gray-600">No submissions found for the selected date.</p>
-                      {availableDates.length > 0 && (
-                        <p className="text-sm text-gray-500 mt-2">
-                          Try selecting a different date from the dropdown above.
-                        </p>
-                      )}
-                    </Card>
-                  )}
-                </div>
+                </Card>
               )}
             </div>
 
@@ -268,36 +201,28 @@ export default function GalleryPage() {
                 <Card className="p-6 rounded-xl shadow-md border-0">
                   <h3 className="font-semibold text-lg text-gray-800 mb-4">Recent Submissions</h3>
                   <div className="space-y-4 max-h-[600px] overflow-y-auto pr-2">
-                    {submissions
-                      .slice(-10)
-                      .reverse()
-                      .map((submission) => (
-                        <div
-                          key={submission.id}
-                          className="flex items-start space-x-3 p-3 rounded-lg hover:bg-gray-50 transition-colors"
-                        >
-                          <div className="h-16 w-16 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0">
-                            <img
-                              src={submission.filePreview || "/placeholder.svg"}
-                              alt={submission.description}
-                              className="h-full w-full object-cover"
-                            />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="font-medium text-sm text-gray-800 truncate">{submission.name}</p>
-                            <p className="text-xs text-gray-500 truncate">{submission.problemTitle}</p>
-                            <p className="text-xs text-gray-400 line-clamp-2 mt-1">{submission.description}</p>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="mt-1 h-7 px-2 text-xs text-[#9333ea] hover:bg-[#f5f0ff] hover:text-[#7e22ce]"
-                              onClick={() => handleViewChallenge(submission.problemId)}
-                            >
-                              View Challenge
-                            </Button>
-                          </div>
+                    {submissions.slice(0, 10).map((submission) => (
+                      <div
+                        key={submission.id}
+                        className="flex items-start space-x-3 p-3 rounded-lg hover:bg-gray-50 transition-colors"
+                      >
+                        <div className="h-16 w-16 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0">
+                          <img
+                            src={submission.imageUrl || "/placeholder.svg"}
+                            alt={submission.designTitle}
+                            className="h-full w-full object-cover"
+                          />
                         </div>
-                      ))}
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-sm text-gray-800 truncate">{submission.name}</p>
+                          <p className="text-xs text-gray-500 truncate">{submission.designTitle}</p>
+                          <p className="text-xs text-gray-400 line-clamp-2 mt-1">{submission.description}</p>
+                          <p className="text-xs text-gray-400 mt-1">
+                            {new Date(submission.submittedAt).toLocaleTimeString()}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </Card>
               </div>

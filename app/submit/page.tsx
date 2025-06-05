@@ -8,130 +8,36 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Card } from "@/components/ui/card"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { FileUploader } from "@/components/file-uploader"
-import { TipCard } from "@/components/tip-card"
 import { ProblemStatement } from "@/components/problem-statement"
-import { CheckCircle } from "lucide-react"
+import { TipCard } from "@/components/tip-card"
+import { RealtimeIndicator } from "@/components/realtime-indicator"
+import { CheckCircle, Loader2 } from "lucide-react"
 import Link from "next/link"
-import { useSharedData } from "@/components/shared-data-provider"
-
-// Extended daily problem statements with more variety
-const DAILY_PROBLEMS = [
-  {
-    date: "2024-12-06",
-    title: "Smart Home Dashboard",
-    description:
-      "Design a minimalist dashboard interface for a smart home app. The dashboard should display key metrics like temperature, energy usage, security status, and quick controls for lights and appliances. Focus on clean typography, intuitive icons, and a calming color palette.",
-    requirements: [
-      "Include at least 4 different widget types",
-      "Use a grid-based layout",
-      "Implement dark/light mode considerations",
-      "Show real-time data visualization",
-    ],
-  },
-  {
-    date: "2024-12-07",
-    title: "Food Delivery Mobile App",
-    description:
-      "Create a mobile app interface for a food delivery service. Design the main browsing experience, restaurant details, and checkout flow. Focus on making food look appetizing and the ordering process seamless.",
-    requirements: [
-      "Restaurant listing with filters",
-      "Food item cards with images and ratings",
-      "Shopping cart and checkout flow",
-      "Order tracking interface",
-    ],
-  },
-  {
-    date: "2024-12-08",
-    title: "Online Learning Platform",
-    description:
-      "Design a modern e-learning platform interface. Include course discovery, video player, progress tracking, and student dashboard. Make it engaging for learners of all ages.",
-    requirements: [
-      "Course catalog with search and filters",
-      "Video player with notes and bookmarks",
-      "Progress tracking dashboard",
-      "Interactive quiz interface",
-    ],
-  },
-  {
-    date: "2024-12-09",
-    title: "Fitness Tracking App",
-    description:
-      "Create a comprehensive fitness app that tracks workouts, nutrition, and health metrics. Design should motivate users and make complex data easy to understand.",
-    requirements: [
-      "Workout logging interface",
-      "Nutrition tracking with food database",
-      "Progress charts and analytics",
-      "Social features for motivation",
-    ],
-  },
-  {
-    date: "2024-12-10",
-    title: "Banking Mobile App",
-    description:
-      "Design a secure and user-friendly mobile banking app. Include account overview, transaction history, money transfers, and bill payments. Security and trust should be paramount.",
-    requirements: [
-      "Account dashboard with balance overview",
-      "Transaction history with search",
-      "Money transfer interface",
-      "Bill payment and scheduling",
-    ],
-  },
-  {
-    date: "2024-12-05",
-    title: "E-commerce Product Page",
-    description:
-      "Create a product page for a sustainable fashion brand. The page should showcase eco-friendly clothing items with emphasis on sustainability features, materials, and brand story.",
-    requirements: [
-      "Product image gallery",
-      "Sustainability badges and certifications",
-      "Size guide integration",
-      "Customer reviews section",
-    ],
-  },
-]
-
-// Function to get problem for any date
-const getProblemForDate = (date: string) => {
-  // First check if we have a specific problem for this date
-  const specificProblem = DAILY_PROBLEMS.find((p) => p.date === date)
-  if (specificProblem) return specificProblem
-
-  // If not, generate a problem based on date
-  const dateObj = new Date(date)
-  const dayOfYear = Math.floor(
-    (dateObj.getTime() - new Date(dateObj.getFullYear(), 0, 0).getTime()) / (1000 * 60 * 60 * 24),
-  )
-  const problemIndex = dayOfYear % DAILY_PROBLEMS.length
-
-  return {
-    ...DAILY_PROBLEMS[problemIndex],
-    date: date, // Override the date to match the requested date
-  }
-}
+import { storageUtils } from "@/lib/storage"
+import { useRealtimeSubmissions } from "@/hooks/use-realtime-submissions"
+import { toast } from "sonner"
 
 export default function SubmitPage() {
   const router = useRouter()
+  const { addSubmission } = useRealtimeSubmissions()
+
   const [formData, setFormData] = useState({
     name: "",
     email: "",
+    designTitle: "",
     description: "",
+    aiTool: "",
     file: null as File | null,
-    filePreview: "",
   })
-  const [todaysProblem, setTodaysProblem] = useState(DAILY_PROBLEMS[0])
-  const [hasSubmittedToday, setHasSubmittedToday] = useState(false)
 
-  const { addSubmission } = useSharedData()
+  const [todaysChallenge, setTodaysChallenge] = useState(storageUtils.getTodaysChallenge())
+  const [hasSubmittedToday, setHasSubmittedToday] = useState(false)
+  const [loading, setLoading] = useState(false)
 
   useEffect(() => {
-    const today = new Date().toISOString().split("T")[0]
-    const problem = getProblemForDate(today)
-    setTodaysProblem(problem)
-
-    // Check if user has already submitted today
-    const userSubmissions = JSON.parse(localStorage.getItem("userSubmissionHistory") || "{}")
-    setHasSubmittedToday(userSubmissions[today] === true)
+    setHasSubmittedToday(storageUtils.hasUserSubmittedToday())
   }, [])
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -139,44 +45,49 @@ export default function SubmitPage() {
     setFormData((prev) => ({ ...prev, [name]: value }))
   }
 
-  const handleFileChange = (file: File) => {
-    const filePreview = URL.createObjectURL(file)
-    setFormData((prev) => ({ ...prev, file, filePreview }))
+  const handleSelectChange = (value: string) => {
+    setFormData((prev) => ({ ...prev, aiTool: value }))
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleFileChange = (file: File) => {
+    setFormData((prev) => ({ ...prev, file }))
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    const today = new Date().toISOString().split("T")[0]
-
-    // Generate a more unique ID that includes timestamp and random component
-    const uniqueId = Date.now() + Math.floor(Math.random() * 1000)
-
-    // Create submission object
-    const submission = {
-      id: uniqueId,
-      ...formData,
-      problemId: todaysProblem.date,
-      problemTitle: todaysProblem.title,
-      submittedAt: new Date().toISOString(),
-      filePreview: formData.filePreview,
+    if (!formData.file) {
+      toast.error("Please upload a design file")
+      return
     }
 
-    // Add submission to shared data (which will also update localStorage)
-    addSubmission(submission)
+    setLoading(true)
 
-    // Update user's submission history
-    const userSubmissions = JSON.parse(localStorage.getItem("userSubmissionHistory") || "{}")
-    userSubmissions[today] = true
-    localStorage.setItem("userSubmissionHistory", JSON.stringify(userSubmissions))
+    try {
+      await addSubmission({
+        name: formData.name,
+        email: formData.email,
+        designTitle: formData.designTitle,
+        description: formData.description,
+        imageFile: formData.file,
+        problemId: todaysChallenge.date,
+        problemTitle: todaysChallenge.title,
+      })
 
-    // Navigate to gallery with preview
-    router.push("/gallery?preview=true")
+      toast.success("Design submitted successfully!")
+      router.push("/gallery?preview=true")
+    } catch (error) {
+      console.error("Submission error:", error)
+      toast.error("Error submitting design. Please try again.")
+    } finally {
+      setLoading(false)
+    }
   }
 
   if (hasSubmittedToday) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-[#f8f9fa] to-[#f0f4f8] py-12">
+        <RealtimeIndicator />
         <div className="container mx-auto px-4">
           <div className="max-w-2xl mx-auto text-center">
             <Card className="p-8 rounded-xl shadow-md border-0">
@@ -213,6 +124,7 @@ export default function SubmitPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#f8f9fa] to-[#f0f4f8] py-12">
+      <RealtimeIndicator />
       <div className="container mx-auto px-4">
         <div className="max-w-6xl mx-auto">
           <h1 className="text-3xl md:text-4xl font-bold text-center mb-8 bg-gradient-to-r from-[#d8b4fe] to-[#f9a8d4] bg-clip-text text-transparent">
@@ -222,7 +134,7 @@ export default function SubmitPage() {
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
             {/* Form Section (Left) */}
             <div className="lg:col-span-8 space-y-6">
-              <ProblemStatement problem={todaysProblem} />
+              <ProblemStatement problem={todaysChallenge} />
 
               <Card className="p-6 rounded-xl shadow-md border-0">
                 <h2 className="text-xl font-semibold text-gray-800 mb-4">Submit Your Solution</h2>
@@ -259,43 +171,71 @@ export default function SubmitPage() {
                   </div>
 
                   <div className="space-y-2">
+                    <label htmlFor="designTitle" className="text-sm font-medium text-gray-700">
+                      Design Title
+                    </label>
+                    <Input
+                      id="designTitle"
+                      name="designTitle"
+                      value={formData.designTitle}
+                      onChange={handleInputChange}
+                      placeholder="Give your design a catchy title"
+                      className="rounded-lg border-gray-200 focus:border-[#d8b4fe] focus:ring-[#d8b4fe]"
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-2">
                     <label htmlFor="description" className="text-sm font-medium text-gray-700">
-                      Solution Description
+                      Design Description
                     </label>
                     <Textarea
                       id="description"
                       name="description"
                       value={formData.description}
                       onChange={handleInputChange}
-                      placeholder="Describe your design approach, key decisions, and how you addressed the requirements..."
+                      placeholder="Describe your design approach, AI prompts used, and key decisions..."
                       className="rounded-lg min-h-[120px] border-gray-200 focus:border-[#d8b4fe] focus:ring-[#d8b4fe]"
                       required
                     />
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-sm font-medium text-gray-700">Upload Design Solution</label>
+                    <label className="text-sm font-medium text-gray-700">AI Tool Used</label>
+                    <Select value={formData.aiTool} onValueChange={handleSelectChange} required>
+                      <SelectTrigger className="rounded-lg border-gray-200 focus:border-[#d8b4fe] focus:ring-[#d8b4fe]">
+                        <SelectValue placeholder="Select the AI tool you used" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="midjourney">Midjourney</SelectItem>
+                        <SelectItem value="dall-e">DALL-E 3</SelectItem>
+                        <SelectItem value="stable-diffusion">Stable Diffusion</SelectItem>
+                        <SelectItem value="firefly">Adobe Firefly</SelectItem>
+                        <SelectItem value="canva-ai">Canva AI</SelectItem>
+                        <SelectItem value="leonardo">Leonardo AI</SelectItem>
+                        <SelectItem value="other">Other</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-gray-700">Upload Design</label>
                     <FileUploader onFileSelect={handleFileChange} />
                   </div>
 
-                  {formData.filePreview && (
-                    <div className="mt-4">
-                      <p className="text-sm font-medium text-gray-700 mb-2">Preview:</p>
-                      <div className="relative aspect-video w-full max-w-md rounded-lg overflow-hidden bg-gray-100">
-                        <img
-                          src={formData.filePreview || "/placeholder.svg"}
-                          alt="Preview"
-                          className="w-full h-full object-contain"
-                        />
-                      </div>
-                    </div>
-                  )}
-
                   <Button
                     type="submit"
+                    disabled={loading}
                     className="w-full h-12 bg-gradient-to-r from-[#d8b4fe] to-[#f9a8d4] hover:opacity-90 text-white rounded-full shadow-md"
                   >
-                    Submit Solution
+                    {loading ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Submitting...
+                      </>
+                    ) : (
+                      "Submit Design"
+                    )}
                   </Button>
                 </form>
               </Card>
@@ -306,11 +246,23 @@ export default function SubmitPage() {
               <TipCard
                 title="Submission Tips"
                 tips={[
-                  "Address all requirements in the problem statement",
-                  "Explain your design decisions clearly",
+                  "Address all requirements in the brief",
+                  "Explain your AI prompts and iterations",
                   "Use high-quality images (PNG or JPG)",
-                  "Consider user experience and accessibility",
+                  "Consider brand consistency and target audience",
                   "Show your creative process and thinking",
+                  "Be specific about your design decisions",
+                ]}
+              />
+
+              <TipCard
+                title="AI Tool Recommendations"
+                tips={[
+                  "Midjourney: Best for artistic and creative designs",
+                  "DALL-E 3: Great for detailed, specific prompts",
+                  "Stable Diffusion: Free and highly customizable",
+                  "Adobe Firefly: Commercial-safe, integrated workflow",
+                  "Canva AI: User-friendly with templates",
                 ]}
               />
             </div>

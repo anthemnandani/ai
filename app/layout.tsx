@@ -3,13 +3,13 @@ import "./globals.css"
 import { Inter } from "next/font/google"
 import { ThemeProvider } from "@/components/theme-provider"
 import { Navbar } from "@/components/navbar"
-import { SharedDataProvider } from "@/components/shared-data-provider"
+import { Toaster } from "@/components/ui/sonner"
 
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata = {
-  title: "Design Submission Portal",
-  description: "Submit and explore creative designs",
+  title: "AI Design Arena - Real-time Design Competition",
+  description: "Create stunning AI-powered designs for real brands and explore community solutions in real-time",
   generator: "v0.dev",
 }
 
@@ -22,10 +22,9 @@ export default function RootLayout({
     <html lang="en">
       <body className={inter.className}>
         <ThemeProvider attribute="class" defaultTheme="light">
-          <SharedDataProvider>
-            <Navbar />
-            {children}
-          </SharedDataProvider>
+          <Navbar />
+          {children}
+          <Toaster />
         </ThemeProvider>
       </body>
     </html>

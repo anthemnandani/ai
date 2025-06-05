@@ -98,6 +98,48 @@ io.on("connection", (socket) => {
   })
 })
 
+// Create default challenge if none exists
+const createDefaultChallenge = async () => {
+  try {
+    const today = new Date().toISOString().split("T")[0]
+    const existingChallenge = await Challenge.findOne({ date: today })
+
+    if (!existingChallenge) {
+      const defaultChallenge = new Challenge({
+        title: "Redesign Rasna's Brand Identity",
+        brandName: "Rasna",
+        description:
+          "Create a modern, Gen Z focused rebrand for Rasna, the iconic Indian soft drink concentrate. Your design should appeal to younger audiences while maintaining brand recognition.",
+        date: today,
+        isActive: true,
+      })
+      await defaultChallenge.save()
+      console.log("Default challenge created")
+    }
+  } catch (error) {
+    console.error("Error creating default challenge:", error)
+  }
+}
+
+// Clear all submissions (only run once at startup)
+const clearAllSubmissions = async () => {
+  try {
+    await Submission.deleteMany({})
+    console.log("All submissions cleared")
+  } catch (error) {
+    console.error("Error clearing submissions:", error)
+  }
+}
+
+// Initialize database
+const initDatabase = async () => {
+  await clearAllSubmissions() // Clear all submissions on startup
+  await createDefaultChallenge() // Create default challenge if needed
+}
+
+// Run initialization
+initDatabase()
+
 // Routes
 
 // Get today's challenge

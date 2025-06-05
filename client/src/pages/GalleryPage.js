@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import axios from "axios"
 import io from "socket.io-client"
+import toast from "react-hot-toast"
 
 const GalleryPage = () => {
   const [submissions, setSubmissions] = useState([])
@@ -27,6 +28,7 @@ const GalleryPage = () => {
     // Listen for new submissions
     socket.on("newSubmission", (newSubmission) => {
       setSubmissions((prev) => [newSubmission, ...prev])
+      toast.success("New submission received!")
     })
 
     return () => socket.disconnect()
@@ -38,6 +40,7 @@ const GalleryPage = () => {
       setSubmissions(response.data)
     } catch (error) {
       console.error("Error fetching submissions:", error)
+      toast.error("Failed to load submissions")
     } finally {
       setLoading(false)
     }

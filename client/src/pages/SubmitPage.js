@@ -1,12 +1,13 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useNavigate } from "react-router-dom"
 import axios from "axios"
 import toast from "react-hot-toast"
 
 const SubmitPage = () => {
   const navigate = useNavigate()
+  const fileInputRef = useRef(null)
   const [challenge, setChallenge] = useState(null)
   const [formData, setFormData] = useState({
     name: "",
@@ -19,6 +20,7 @@ const SubmitPage = () => {
   })
   const [loading, setLoading] = useState(false)
   const [preview, setPreview] = useState("")
+  const [fetchingChallenge, setFetchingChallenge] = useState(true)
 
   useEffect(() => {
     fetchTodaysChallenge()
@@ -33,6 +35,9 @@ const SubmitPage = () => {
       }
     } catch (error) {
       console.error("Error fetching challenge:", error)
+      toast.error("Failed to load today's challenge")
+    } finally {
+      setFetchingChallenge(false)
     }
   }
 
@@ -51,14 +56,40 @@ const SubmitPage = () => {
     }
   }
 
+  const handleDrop = (e) => {
+    e.preventDefault()
+    const file = e.dataTransfer.files[0]
+    if (file && file.type.startsWith("image/")) {
+      setFormData({ ...formData, image: file })
+      setPreview(URL.createObjectURL(file))
+    }
+  }
+
+  const handleDragOver = (e) => {
+    e.preventDefault()
+    e.currentTarget.classList.add("dragover")
+  }
+
+  const handleDragLeave = (e) => {
+    e.currentTarget.classList.remove("dragover")
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault()
+
+    if (!formData.image) {
+      toast.error("Please upload an image")
+      return
+    }
+
     setLoading(true)
 
     try {
       const submitData = new FormData()
       Object.keys(formData).forEach((key) => {
-        submitData.append(key, formData[key])
+        if (formData[key]) {
+          submitData.append(key, formData[key])
+        }
       })
 
       await axios.post("/api/submissions", submitData, {
@@ -68,10 +99,22 @@ const SubmitPage = () => {
       toast.success("Design submitted successfully!")
       navigate("/gallery")
     } catch (error) {
+      console.error("Submission error:", error)
       toast.error(error.response?.data?.error || "Error submitting design")
     } finally {
       setLoading(false)
     }
+  }
+
+  if (fetchingChallenge) {
+    return (
+      <div className="container">
+        <div style={{ textAlign: "center", padding: "4rem 0" }}>
+          <div className="loading" style={{ width: "40px", height: "40px" }}></div>
+          <p style={{ marginTop: "1rem", color: "#666" }}>Loading challenge...</p>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -155,9 +198,22 @@ const SubmitPage = () => {
 
           <div className="form-group">
             <label className="form-label">Upload Design</label>
-            <div className="file-upload" onClick={() => document.getElementById("file-input").click()}>
-              <input id="file-input" type="file" accept="image/*" onChange={handleFileChange} required />
-              <p>Click to upload your design</p>
+            <div
+              className="file-upload"
+              onClick={() => fileInputRef.current.click()}
+              onDrop={handleDrop}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+            >
+              <input
+                ref={fileInputRef}
+                id="file-input"
+                type="file"
+                accept="image/*"
+                onChange={handleFileChange}
+                required
+              />
+              <p>Click or drag to upload your design</p>
               <p style={{ fontSize: "0.875rem", color: "#666" }}>PNG, JPG up to 10MB</p>
             </div>
           </div>

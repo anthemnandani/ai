@@ -1,36 +1,61 @@
-import { Link } from "react-router-dom"
+import { Link, useLocation } from "react-router-dom"
+import { Palette, Trophy, GalleryThumbnailsIcon as Gallery, Upload, Home } from "lucide-react"
 
 const Navbar = () => {
-  return (
-    <header className="navbar">
-      <div className="container">
-        <div className="navbar-content">
-          <Link to="/" className="navbar-brand">
-            <div className="navbar-logo"></div>
-            <span className="navbar-title">TuteDude</span>
-          </Link>
+  const location = useLocation()
 
-          <nav className="navbar-nav">
-            <Link to="/" className="navbar-link">
+  const isActive = (path) => location.pathname === path
+
+  return (
+    <nav className="navbar">
+      <div className="navbar-content">
+        <Link to="/" className="navbar-brand">
+          <div className="navbar-logo">
+            <Palette size={20} />
+          </div>
+          <span className="navbar-title">AI Design Arena</span>
+        </Link>
+
+        <ul className="navbar-nav">
+          <li>
+            <Link to="/" className={isActive("/") ? "active" : ""}>
+              <Home size={18} />
               Home
             </Link>
-            <Link to="/submit" className="navbar-link">
-              Submit
+          </li>
+          <li>
+            <Link to="/challenge" className={isActive("/challenge") ? "active" : ""}>
+              <Palette size={18} />
+              Today's Challenge
             </Link>
-            <Link to="/gallery" className="navbar-link">
+          </li>
+          <li>
+            <Link to="/submit" className={isActive("/submit") ? "active" : ""}>
+              <Upload size={18} />
+              Submit Design
+            </Link>
+          </li>
+          <li>
+            <Link to="/gallery" className={isActive("/gallery") ? "active" : ""}>
+              <Gallery size={18} />
               Gallery
             </Link>
-          </nav>
+          </li>
+          <li>
+            <Link to="/leaderboard" className={isActive("/leaderboard") ? "active" : ""}>
+              <Trophy size={18} />
+              Leaderboard
+            </Link>
+          </li>
+        </ul>
 
-          <div className="navbar-actions">
-            <button className="btn btn-ghost" style={{ display: "none" }}>
-              Sign In
-            </button>
-            <button className="btn btn-primary">Join</button>
-          </div>
+        <div className="navbar-actions">
+          <Link to="/submit" className="btn btn-primary">
+            Submit Design
+          </Link>
         </div>
       </div>
-    </header>
+    </nav>
   )
 }
 

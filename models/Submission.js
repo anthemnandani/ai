@@ -1,115 +1,98 @@
-const { ObjectId } = require("mongodb")
+const mongoose = require("mongoose")
 
-class Submission {
-  constructor(db) {
-    this.collection = db.collection("submissions")
-  }
+const submissionSchema = new mongoose.Schema({
+  challengeId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Challenge",
+    required: true,
+  },
+  userId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "User",
+    required: false, // Allow anonymous submissions
+  },
+  name: {
+    type: String,
+    required: true,
+    trim: true,
+  },
+  email: {
+    type: String,
+    required: true,
+    trim: true,
+    lowercase: true,
+  },
+  designTitle: {
+    type: String,
+    required: true,
+    trim: true,
+  },
+  description: {
+    type: String,
+    required: true,
+  },
+  aiToolsUsed: [
+    {
+      type: String,
+      enum: ["midjourney", "dall-e", "stable-diffusion", "firefly", "canva-ai", "figma-ai", "other"],
+    },
+  ],
+  aiPrompts: [
+    {
+      prompt: String,
+      tool: String,
+    },
+  ],
+  designImages: [
+    {
+      url: String,
+      publicId: String, // Cloudinary public ID
+      caption: String,
+    },
+  ],
+  processImages: [
+    {
+      // Work-in-progress images
+      url: String,
+      publicId: String,
+      caption: String,
+    },
+  ],
+  tags: [
+    {
+      type: String,
+      trim: true,
+    },
+  ],
+  likes: {
+    type: Number,
+    default: 0,
+  },
+  likedBy: [
+    {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+    },
+  ],
+  views: {
+    type: Number,
+    default: 0,
+  },
+  featured: {
+    type: Boolean,
+    default: false,
+  },
+  submittedAt: {
+    type: Date,
+    default: Date.now,
+  },
+})
 
-  async create(submissionData) {
-    const submission = {
-      ...submissionData,
-      submittedAt: new Date(),
-    }
+// Indexes for better performance
+submissionSchema.index({ challengeId: 1, submittedAt: -1 })
+submissionSchema.index({ likes: -1 })
+submissionSchema.index({ views: -1 })
+submissionSchema.index({ featured: 1 })
+submissionSchema.index({ email: 1 })
 
-    const result = await this.collection.insertOne(submission)
-    return { ...submission, _id: result.insertedId }
-  }
-
-  async findByProblemId(problemId) {
-    return await this.collection.find({ problemId }).sort({ submittedAt: -1 }).toArray()
-  }
-
-  async findRecent(limit = 20) {
-    return await this.collection.find({}).sort({ submittedAt: -1 }).limit(limit).toArray()
-  }
-
-  async findById(id) {
-    if (!ObjectId.isValid(id)) {
-      throw new Error("Invalid submission ID")
-    }
-    return await this.collection.findOne({ _id: new ObjectId(id) })
-  }
-
-  async findByEmail(email) {
-    return await this.collection.find({ email: email.toLowerCase() }).sort({ submittedAt: -1 }).toArray()
-  }
-
-  async search(query, problemId = null) {
-    const searchQuery = {}
-
-    if (problemId) {
-      searchQuery.problemId = problemId
-    }
-
-    if (query) {
-      searchQuery.$or = [
-        { name: { $regex: query, $options: "i" } },
-        { description: { $regex: query, $options: "i" } },
-        { problemTitle: { $regex: query, $options: "i" } },
-      ]
-    }
-
-    return await this.collection.find(searchQuery).sort({ submittedAt: -1 }).limit(50).toArray()
-  }
-
-  async getDistinctProblemIds() {
-    const ids = await this.collection.distinct("problemId")
-    return ids.sort().reverse()
-  }
-
-  async count(filter = {}) {
-    return await this.collection.countDocuments(filter)
-  }
-
-  async countByProblemId(problemId) {
-    return await this.collection.countDocuments({ problemId })
-  }
-
-  async countRecent(hours = 24) {
-    const since = new Date(Date.now() - hours * 60 * 60 * 1000)
-    return await this.collection.countDocuments({
-      submittedAt: { $gte: since },
-    })
-  }
-
-  async update(id, updateData) {
-    if (!ObjectId.isValid(id)) {
-      throw new Error("Invalid submission ID")
-    }
-
-    const result = await this.collection.updateOne(
-      { _id: new ObjectId(id) },
-      { $set: { ...updateData, updatedAt: new Date() } },
-    )
-
-    return result.modifiedCount > 0
-  }
-
-  async delete(id) {
-    if (!ObjectId.isValid(id)) {
-      throw new Error("Invalid submission ID")
-    }
-
-    const result = await this.collection.deleteOne({ _id: new ObjectId(id) })
-    return result.deletedCount > 0
-  }
-
-  async getStats() {
-    const pipeline = [
-      {
-        $group: {
-          _id: "$problemId",
-          count: { $sum: 1 },
-          problemTitle: { $first: "$problemTitle" },
-        },
-      },
-      {
-        $sort: { _id: -1 },
-      },
-    ]
-
-    return await this.collection.aggregate(pipeline).toArray()
-  }
-}
-
-module.exports = Submission
+module.exports = mongoose.model("Submission", submissionSchema)

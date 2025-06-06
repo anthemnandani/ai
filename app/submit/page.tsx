@@ -53,36 +53,44 @@ export default function SubmitPage() {
     setFormData((prev) => ({ ...prev, file }))
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
 
-    if (!formData.file) {
-      toast.error("Please upload a design file")
-      return
-    }
-
-    setLoading(true)
-
-    try {
-      await addSubmission({
-        name: formData.name,
-        email: formData.email,
-        designTitle: formData.designTitle,
-        description: formData.description,
-        imageFile: formData.file,
-        problemId: todaysChallenge.date,
-        problemTitle: todaysChallenge.title,
-      })
-
-      toast.success("Design submitted successfully!")
-      router.push("/gallery?preview=true")
-    } catch (error) {
-      console.error("Submission error:", error)
-      toast.error("Error submitting design. Please try again.")
-    } finally {
-      setLoading(false)
-    }
+  if (!formData.file) {
+    toast.error("Please upload a design file");
+    return;
   }
+
+  setLoading(true);
+
+  try {
+    const data = new FormData();
+    data.append("name", formData.name);
+    data.append("email", formData.email);
+    data.append("designTitle", formData.designTitle);
+    data.append("description", formData.description);
+    data.append("aiTool", formData.aiTool);
+    data.append("file", formData.file);
+    data.append("problemId", todaysChallenge.date);
+    data.append("problemTitle", todaysChallenge.title);
+
+    const res = await fetch("/api/submit", {
+      method: "POST",
+      body: data,
+    });
+
+    if (!res.ok) throw new Error("Failed to submit");
+
+    toast.success("Design submitted successfully!");
+    router.push("/gallery?preview=true");
+  } catch (error) {
+    console.error("Submission error:", error);
+    toast.error("Error submitting design. Please try again.");
+  } finally {
+    setLoading(false);
+  }
+};
+
 
   if (hasSubmittedToday) {
     return (

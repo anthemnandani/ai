@@ -1,6 +1,15 @@
+// app/api/submit/route.ts
 import { NextResponse } from "next/server";
 import { connectToDatabase } from "@/lib/mongodb";
 import { Submission } from "@/models/Submission";
+import { v2 as cloudinary } from "cloudinary";
+
+// Configure Cloudinary
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
 
 export async function POST(req: Request) {
   try {
@@ -15,9 +24,32 @@ export async function POST(req: Request) {
     const problemId = body.get("problemId") as string;
     const problemTitle = body.get("problemTitle") as string;
 
-    // Upload file to your storage solution here, e.g., Cloudinary, Supabase, etc.
-    // For demo purposes, we'll mock this
-    const imageUrl = "https://dummy-image-url.com/design.png";
+    if (!file) {
+      return NextResponse.json({ error: "No file uploaded" }, { status: 400 });
+    }
+
+    // Convert file to buffer for Cloudinary upload
+    const arrayBuffer = await file.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+
+    // Upload to Cloudinary
+    const uploadResult = await new Promise<{ secure_url: string }>((resolve, reject) => {
+      const stream = cloudinary.uploader.upload_stream(
+        {
+          folder: "ai-challenge-submissions",
+          public_id: `${problemId}_${Date.now()}`,
+          resource_type: "image",
+        },
+        (error, result) => {
+          if (error) reject(error);
+          else if (result) resolve(result);
+          else reject(new Error("Upload failed"));
+        }
+      );
+      stream.end(buffer);
+    });
+
+    const imageUrl = uploadResult.secure_url;
 
     await connectToDatabase();
 
@@ -30,11 +62,15 @@ export async function POST(req: Request) {
       imageUrl,
       problemId,
       problemTitle,
+      createdAt: new Date(),
     });
 
     return NextResponse.json({ message: "Submission saved!" }, { status: 200 });
   } catch (error) {
     console.error("Error saving submission:", error);
-    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Internal Server Error", details: error instanceof Error ? error.message : String(error) },
+      { status: 500 }
+    );
   }
 }

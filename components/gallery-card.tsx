@@ -11,7 +11,7 @@ interface GalleryCardProps {
     name: string
     email: string
     description: string
-    filePreview: string
+    imageUrl: string
     problemTitle: string
     submittedAt: string
   }
@@ -34,7 +34,7 @@ export function GalleryCard({ item }: GalleryCardProps) {
       <Card className="overflow-hidden rounded-xl shadow-md border-0 hover:shadow-lg transition-shadow">
         <div className="relative aspect-video bg-gray-100">
           <img
-            src={item.filePreview || "/placeholder.svg"}
+            src={item.imageUrl || "/placeholder.svg"}
             alt={item.description}
             className="w-full h-full object-cover cursor-pointer"
             onClick={() => setShowFullImage(true)}
@@ -86,7 +86,7 @@ export function GalleryCard({ item }: GalleryCardProps) {
         >
           <div className="relative max-w-4xl max-h-full">
             <img
-              src={item.filePreview || "/placeholder.svg"}
+              src={item.imageUrl || "/placeholder.svg"}
               alt={item.description}
               className="max-w-full max-h-full object-contain rounded-lg"
             />

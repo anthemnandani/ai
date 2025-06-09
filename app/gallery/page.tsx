@@ -1,51 +1,54 @@
-"use client"
+// app/gallery/page.tsx
+"use client";
 
-import { useState, useEffect } from "react"
-import { useSearchParams } from "next/navigation"
-import { Button } from "@/components/ui/button"
-import { Card } from "@/components/ui/card"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { GalleryCard } from "@/components/gallery-card"
-import { RealtimeIndicator } from "@/components/realtime-indicator"
-import { CheckCircle, Lock, Loader2 } from "lucide-react"
-import Link from "next/link"
-import { storageUtils } from "@/lib/storage"
-import { useRealtimeSubmissions } from "@/hooks/use-realtime-submissions"
-import { toast } from "sonner"
+import { useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { GalleryCard } from "@/components/gallery-card";
+import { RealtimeIndicator } from "@/components/realtime-indicator";
+import { CheckCircle, Lock, Loader2, AlertCircle } from "lucide-react";
+import Link from "next/link";
+import { storageUtils } from "@/lib/storage";
+import { useSubmissions } from "@/hooks/use-submissions"; // Updated import
+import { toast } from "sonner";
 
 export default function GalleryPage() {
-  const searchParams = useSearchParams()
-  const showPreview = searchParams.get("preview") === "true"
-  const { submissions, loading } = useRealtimeSubmissions()
+  const searchParams = useSearchParams();
+  const showPreview = searchParams.get("preview") === "true";
+  const { submissions, loading, error } = useSubmissions();
 
-  const [selectedDate, setSelectedDate] = useState("")
-  const [availableDates, setAvailableDates] = useState<string[]>([])
-  const [hasAccess, setHasAccess] = useState(false)
+  const [selectedDate, setSelectedDate] = useState("");
+  const [availableDates, setAvailableDates] = useState<string[]>([]);
+  const [hasAccess, setHasAccess] = useState(false);
 
   useEffect(() => {
+    console.log("Submissions in GalleryPage:", submissions);
     const checkAccess = () => {
-      const userHasSubmitted = storageUtils.hasUserSubmittedToday()
-      setHasAccess(userHasSubmitted || showPreview)
+      const userHasSubmitted = storageUtils.hasUserSubmittedToday();
+      setHasAccess(userHasSubmitted || showPreview);
 
-      // Get available dates from submissions
-      const dates = [...new Set(submissions.map((s) => s.problemId))].sort().reverse()
-      setAvailableDates(dates)
+      const dates = [...new Set(submissions.map((s) => s.problemId))].sort().reverse();
+      console.log("Available dates:", dates);
+      setAvailableDates(dates);
 
       if (dates.length > 0 && !selectedDate) {
-        setSelectedDate(dates[0])
+        setSelectedDate(dates[0]);
       }
-    }
+    };
 
-    checkAccess()
-  }, [submissions, showPreview, selectedDate])
+    checkAccess();
+  }, [submissions, showPreview, selectedDate]);
 
   useEffect(() => {
     if (showPreview) {
-      toast.success("Submission successful! Welcome to the gallery.")
+      toast.success("Submission successful! Welcome to the gallery.");
     }
-  }, [showPreview])
+  }, [showPreview]);
 
-  const filteredSubmissions = submissions.filter((s) => s.problemId === selectedDate)
+  const filteredSubmissions = submissions.filter((s) => s.problemId === selectedDate);
+  console.log("Filtered submissions for date", selectedDate, ":", filteredSubmissions);
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString("en-US", {
@@ -53,10 +56,9 @@ export default function GalleryPage() {
       year: "numeric",
       month: "long",
       day: "numeric",
-    })
-  }
+    });
+  };
 
-  // Show lock screen if user hasn't submitted and not in preview mode
   if (!hasAccess && !showPreview) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-[#f8f9fa] to-[#f0f4f8] py-12">
@@ -84,7 +86,7 @@ export default function GalleryPage() {
           </div>
         </div>
       </div>
-    )
+    );
   }
 
   if (loading) {
@@ -102,7 +104,29 @@ export default function GalleryPage() {
           </div>
         </div>
       </div>
-    )
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-[#f8f9fa] to-[#f0f4f8] py-12">
+        <RealtimeIndicator />
+        <div className="container mx-auto px-4">
+          <div className="max-w-2xl mx-auto text-center">
+            <Card className="p-8 rounded-xl shadow-md border-0">
+              <div className="flex flex-col items-center space-y-6">
+                <AlertCircle className="h-16 w-16 text-red-500" />
+                <h1 className="text-2xl font-bold text-gray-800">Error Loading Gallery</h1>
+                <p className="text-gray-600">{error}</p>
+                <Button onClick={() => window.location.reload()} className="h-12 px-8 bg-gradient-to-r from-[#d8b4fe] to-[#f9a8d4] hover:opacity-90 text-white rounded-full shadow-md">
+                  Retry
+                </Button>
+              </div>
+            </Card>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -129,9 +153,7 @@ export default function GalleryPage() {
           )}
 
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-            {/* Main Gallery Content */}
             <div className="lg:col-span-8 space-y-6">
-              {/* Date Filter */}
               <Card className="p-4 rounded-xl shadow-md border-0">
                 <div className="flex items-center justify-between">
                   <h2 className="text-lg font-semibold text-gray-800">Browse Solutions</h2>
@@ -154,7 +176,6 @@ export default function GalleryPage() {
                 </div>
               </Card>
 
-              {/* Current Challenge Info */}
               {selectedDate && (
                 <Card className="p-6 rounded-xl shadow-md border-0 bg-gradient-to-r from-[#f8fafc] to-[#f1f5f9]">
                   <div className="flex items-center justify-between">
@@ -176,7 +197,6 @@ export default function GalleryPage() {
                 </Card>
               )}
 
-              {/* Solutions Grid */}
               {filteredSubmissions.length > 0 ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {filteredSubmissions.map((submission) => (
@@ -195,7 +215,6 @@ export default function GalleryPage() {
               )}
             </div>
 
-            {/* Right Side Panel - Recent Submissions */}
             <div className="lg:col-span-4">
               <div className="sticky top-24">
                 <Card className="p-6 rounded-xl shadow-md border-0">
@@ -231,5 +250,5 @@ export default function GalleryPage() {
         </div>
       </div>
     </div>
-  )
+  );
 }

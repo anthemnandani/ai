@@ -67,11 +67,29 @@ export class RealtimeStorage {
 export const realtimeStorage = new RealtimeStorage()
 
 export const storageUtils = {
-  // Submissions
-  getSubmissions(): Submission[] {
-    const data = localStorage.getItem(STORAGE_KEYS.SUBMISSIONS)
-    return data ? JSON.parse(data) : []
-  },
+getSubmissions: async (): Promise<Submission[]> => {
+  try {
+    const res = await fetch("/api/submissions"); // <-- adjust URL to match your backend route
+    if (!res.ok) throw new Error("Failed to fetch submissions");
+    const mongoSubmissions = await res.json();
+
+    // Convert MongoDB format to expected format
+    return mongoSubmissions.map((item: any) => ({
+      id: item._id,
+      name: item.name,
+      email: item.email,
+      designTitle: item.designTitle,
+      description: item.description,
+      imageUrl: item.imageUrl,
+      problemId: item.problemId,
+      problemTitle: item.problemTitle,
+      submittedAt: item.createdAt,
+    }));
+  } catch (err) {
+    console.error("Error fetching submissions:", err);
+    return [];
+  }
+},
 
   addSubmission(submission: Omit<Submission, "id" | "submittedAt">): Submission {
     const submissions = this.getSubmissions()
